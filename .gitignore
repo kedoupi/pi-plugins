@@ -1,2 +1,12 @@
 .worktrees/
 .superpowers/
+node_modules/
+*.tgz
+coverage/
+dist/
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/

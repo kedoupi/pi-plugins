@@ -15,12 +15,20 @@ pi
 
 ## Project-local loading
 
-`.pi/settings.json` 通过相对路径引用本地 workspace：
+foundation 阶段没有真实第一方 Package，因此提交的 `.pi/settings.json` 保持：
+
+```json
+{
+  "packages": []
+}
+```
+
+选定并创建首个真实 Package 后，再按相对路径加入对应 workspace：
 
 ```json
 {
   "packages": [
-    "../packages/pi-example"
+    "../packages/<real-package-dir>"
   ]
 }
 ```
@@ -35,14 +43,16 @@ pi
 
 ## Single-Package isolation
 
+首个真实 Package 落地后，使用它自己的目录进行隔离调试：
+
 ```bash
-pi --no-extensions -e ./packages/pi-example
+pi --no-extensions -e ./packages/<real-package-dir>
 ```
 
 必要时直接加载入口：
 
 ```bash
-pi --no-extensions -e ./packages/pi-example/extensions/index.ts
+pi --no-extensions -e ./packages/<real-package-dir>/extensions/index.ts
 ```
 
 包含 Skill、Prompt 或 Theme 时优先加载整个 Package 目录。
@@ -52,7 +62,7 @@ pi --no-extensions -e ./packages/pi-example/extensions/index.ts
 候选版本通过隔离测试后，以绝对路径加入全局 Pi：
 
 ```bash
-pi install /absolute/path/pi-plugins/packages/pi-example
+pi install /absolute/path/pi-plugins/packages/<real-package-dir>
 ```
 
 至少完成一个真实工作任务，并验证重启、`/reload`、Session 生命周期、无 UI 模式和资源清理。
@@ -62,8 +72,8 @@ pi install /absolute/path/pi-plugins/packages/pi-example
 发布后移除本地路径，再安装 npm 正式版：
 
 ```bash
-pi remove /absolute/path/pi-plugins/packages/pi-example
-pi install npm:@kedoupi/pi-example
+pi remove /absolute/path/pi-plugins/packages/<real-package-dir>
+pi install npm:@kedoupi/<real-package-name>
 ```
 
-不得同时加载本地版和 npm 版。
+其中 `<real-package-name>` 必须是实际发布的 `pi-*` 名称。不得同时加载本地版和 npm 版。

@@ -2,14 +2,13 @@
 
 ## Independent versions and tags
 
-每个 Package 使用独立 SemVer 和 Tag：
+每个真实第一方 Package 使用独立 SemVer 和 Tag：
 
 ```text
-@kedoupi/pi-example 1.3.0 → pi-example-v1.3.0
-@kedoupi/pi-suite   1.1.0 → pi-suite-v1.1.0
+@kedoupi/<real-package-name> 1.3.0 → <real-package-tag>-v1.3.0
 ```
 
-初期不引入 Changesets。使用 npm workspaces、独立版本、独立 CHANGELOG 和 Tag 驱动的 GitHub Actions。Package 数量或并行发布频率使手工版本管理成为可测量问题后，再评估 Changesets。
+future Suite 只在至少有一个可发布第一方 Package 后创建，并从那时开始使用自己的独立版本和 Tag。初期不引入 Changesets。使用 npm workspaces、独立版本、独立 CHANGELOG 和 Tag 驱动的 GitHub Actions。Package 数量或并行发布频率使手工版本管理成为可测量问题后，再评估 Changesets。
 
 发布流程：
 
@@ -35,8 +34,8 @@
 ## Rollback
 
 ```bash
-pi install npm:@kedoupi/pi-example@1.2.3
-pi install npm:@kedoupi/pi-example@1.2.2
+pi install npm:@kedoupi/<real-package-name>@1.2.3
+pi install npm:@kedoupi/<real-package-name>@1.2.2
 ```
 
 固定版本不会被普通 Package 更新自动推进。每个 README 必须说明升级、卸载和回滚。

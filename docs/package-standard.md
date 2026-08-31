@@ -23,20 +23,35 @@
 
 ## Documentation
 
-第一方 Package README 必须包含：
+所有 README 使用英文二级标题，正文可按受众选择语言。`scripts/validate-readmes.mjs` 会拒绝缺失、重复或空的必需章节。
 
-1. 功能与适用场景。
-2. 安装命令。
-3. 第一次使用方法。
-4. 工具、命令和快捷键。
-5. 配置位置与默认值。
-6. 环境变量。
-7. 权限与安全影响。
-8. 已知冲突。
-9. 更新、卸载与回滚。
-10. 已验证的 Pi 与 Node.js 版本。
+根 `README.md` 与 `README.zh-CN.md` 必须包含：
 
-Suite README 必须列出成员版本、快速入门、与独立安装相互切换的方法。
+1. `About`
+2. `Features`
+3. `Curated Catalog`
+4. `Repository Structure`
+5. `Development`
+6. `Contributing`
+7. `Security`
+8. `Roadmap`
+9. `License`
+
+每个第一方 Package README 必须包含：
+
+1. `About`：功能与适用场景。
+2. `Installation`：安装命令。
+3. `Quick Start`：第一次使用方法。
+4. `Commands, Tools, and Shortcuts`：用户入口。
+5. `Configuration`：配置位置与默认值。
+6. `Environment Variables`：变量名称与用途；没有时也要明确说明。
+7. `Permissions and Security`：权限与安全影响。
+8. `Known Conflicts`：已知冲突；没有时明确说明。
+9. `Update and Rollback`：更新、卸载与回滚。
+10. `Compatibility`：已验证的 Pi 与 Node.js 版本。
+11. `License`
+
+Suite README 还必须包含 `Suite Members` 与 `Switching Installation Modes`，列出成员版本以及与独立安装相互切换的方法。
 
 ## Security
 

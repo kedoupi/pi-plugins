@@ -42,7 +42,7 @@ npm test
 npm run pack:check
 ```
 
-`check` 聚合 workspace 类型检查、Package manifest 检查、Catalog 检查和 Suite 检查。`test` 聚合 Package 测试。`pack:check` 检查真实 npm tarball 文件列表。
+`check` 聚合 workspace 类型检查、Package manifest、README 结构、Catalog 和 Suite 检查。`test` 聚合 Package 测试。`pack:check` 检查真实 npm tarball 文件列表。
 
 ## Manual lifecycle checks
 

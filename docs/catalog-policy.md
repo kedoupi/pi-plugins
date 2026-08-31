@@ -67,7 +67,7 @@ Catalog 只收录公开可访问的社区 Pi Package。当前规则覆盖 8 个�
 10. `## Limitations`
 11. `## Upstream and License`
 
-中文页保留英文标题，正文使用简体中文。详情页必须写明调研版本、调研日期和“仅基于公开文档/源码调研，不构成安全保证”的免责声明。
+中文页保留英文标题，正文使用简体中文。详情页必须写明调研版本、调研日期，并使用精确免责声明：英文页 `Documentation review only; not a security guarantee.`；中文页 `仅审阅公开文档；不构成安全保证。`。
 
 ## Manual research checklist
 

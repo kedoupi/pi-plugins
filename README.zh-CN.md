@@ -26,9 +26,9 @@ Kedoupi Pi Plugins 是 `@kedoupi` 的 [Pi](https://github.com/badlogic/pi-mono) 
 
 ## Curated Catalog
 
-在 [CATALOG.md](./CATALOG.md) 中查看社区 Package 的上游仓库、许可证、推荐理由和安全提示。
+在 [CATALOG.md](./CATALOG.md) 中查看社区 Package 的双语人工调研使用说明、安全信息、上游仓库、许可证和推荐理由。
 
-社区可通过 Pull Request 推荐条目。`tested` 与 `reviewed` 状态必须有维护者证据；贡献者只能提交 `community` 状态。详见 [Catalog 政策](./docs/catalog-policy.md)。
+社区可通过 Pull Request 推荐条目。`tested` 与 `reviewed` 状态必须有维护者证据；贡献者只能提交 `community` 状态。人工调研不等于每个 Package 都已实际执行，也不等于完成全面安全审计。详见 [Catalog 政策](./docs/catalog-policy.md)。
 
 ## Repository Structure
 

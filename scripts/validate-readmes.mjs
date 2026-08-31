@@ -34,10 +34,9 @@ export const SUITE_README_SECTIONS = [
   "Switching Installation Modes"
 ];
 
-export function validateReadme(markdown, requiredSections, label) {
+export function readReadmeSections(markdown) {
   const sections = [];
   let current;
-
   for (const line of markdown.split(/\r?\n/)) {
     const heading = line.match(/^##[ \t]+(.+?)[ \t]*$/);
     if (heading) {
@@ -47,7 +46,11 @@ export function validateReadme(markdown, requiredSections, label) {
       current.body.push(line);
     }
   }
+  return sections;
+}
 
+export function validateReadme(markdown, requiredSections, label) {
+  const sections = readReadmeSections(markdown);
   const errors = [];
   for (const name of requiredSections) {
     const matches = sections.filter((section) => section.name === name);

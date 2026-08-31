@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { catalogInstall } from "./catalog-source.mjs";
 import { readCatalog, validateCatalog } from "./validate-catalog.mjs";
 
 const title = (value) => value.replace(/(^|-)([a-z])/g, (_match, dash, letter) => `${dash ? " " : ""}${letter.toUpperCase()}`);
@@ -28,15 +29,17 @@ export function renderCatalog(entries) {
     const items = categories.get(category).sort((a, b) => a.name.localeCompare(b.name, "en"));
     for (const entry of items) {
       lines.push(
-        `### [${entry.name}](${entry.repository})`,
+        `### [${entry.name}](./catalog/details/${entry.id}.md)`,
         "",
         `${entry.summary} ${entry.recommendation}`,
         "",
         `- Status: \`${entry.status}\``,
-        `- Package: \`${entry.package}\``,
-        `- Install: \`${entry.install}\``,
+        `- Source: \`${entry.source}\``,
+        `- Install: \`${catalogInstall(entry.source)}\``,
         `- License: ${entry.license}`,
+        `- Researched: ${entry.researchedVersion} on ${entry.researchedAt}`,
         `- Tested: ${entry.testedAt ?? "not tested by @kedoupi"}`,
+        `- Details: [English](./catalog/details/${entry.id}.md) · [简体中文](./catalog/details/${entry.id}.zh-CN.md) · [Upstream](${entry.repository})`,
         ""
       );
     }

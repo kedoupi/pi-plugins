@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   PACKAGE_README_SECTIONS,
   ROOT_README_SECTIONS,
+  readReadmeSections,
   validateReadme,
   validateReadmes
 } from "./validate-readmes.mjs";
@@ -24,6 +25,13 @@ test("pins the required README section names", () => {
     "About", "Installation", "Quick Start", "Commands, Tools, and Shortcuts",
     "Configuration", "Environment Variables", "Permissions and Security",
     "Known Conflicts", "Update and Rollback", "Compatibility", "License"
+  ]);
+});
+
+test("reads README sections from markdown", () => {
+  assert.deepEqual(readReadmeSections(readme(["About", "License"])), [
+    { name: "About", body: ["", "Useful details.", ""] },
+    { name: "License", body: ["", "Useful details."] }
   ]);
 });
 

@@ -42,6 +42,8 @@ npm test
 npm run pack:check
 ```
 
+`npm run check` 在无网络访问的前提下验证源码语法、Catalog 元数据、英中详情页成对关系、孤儿详情页、11 个固定标题、双语互链、精确安装命令、调研版本/日期以及生成后的 `CATALOG.md` 是否最新。
+
 `check` 聚合 workspace 类型检查、Package manifest、README 结构、Catalog 和 Suite 检查。`test` 聚合 Package 测试。`pack:check` 检查真实 npm tarball 文件列表。
 
 ## Manual lifecycle checks

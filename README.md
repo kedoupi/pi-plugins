@@ -26,9 +26,9 @@ No first-party Package is published yet; this repository does not use empty exam
 
 ## Curated Catalog
 
-Browse [CATALOG.md](./CATALOG.md) for community Packages and their upstream repositories, licenses, recommendations, and security notes.
+Browse [CATALOG.md](./CATALOG.md) for community Packages and their bilingual, manually researched usage and security details, plus upstream repositories, licenses, and recommendations.
 
-Catalog submissions are accepted through pull requests. The `tested` and `reviewed` statuses require maintainer evidence; contributors may submit new entries as `community` only. See the [catalog policy](./docs/catalog-policy.md).
+Catalog submissions are accepted through pull requests. The `tested` and `reviewed` statuses require maintainer evidence; contributors may submit new entries as `community` only. Catalog research is not the same as executing every Package or completing a full security review. See the [catalog policy](./docs/catalog-policy.md).
 
 ## Repository Structure
 

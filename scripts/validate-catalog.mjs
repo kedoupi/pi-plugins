@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { catalogInstall } from "./catalog-source.mjs";
 import { readReadmeSections, validateReadme } from "./validate-readmes.mjs";
 
@@ -143,12 +143,17 @@ function validateDetailMarkdown(entry, path, markdown, language) {
   return errors;
 }
 
+function normalizeFilePath(pathOrUrl) {
+  return pathOrUrl instanceof URL ? fileURLToPath(pathOrUrl) : pathOrUrl;
+}
+
 export async function validateCatalogDetails(entries, detailsDir) {
+  const directory = normalizeFilePath(detailsDir);
   const errors = [];
   let detailFiles = [];
 
   try {
-    detailFiles = (await readdir(detailsDir, { withFileTypes: true }))
+    detailFiles = (await readdir(directory, { withFileTypes: true }))
       .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
       .map((entry) => entry.name);
   } catch (error) {
@@ -159,9 +164,9 @@ export async function validateCatalogDetails(entries, detailsDir) {
   for (const entry of entries) {
     for (const name of [`${entry.id}.md`, `${entry.id}.zh-CN.md`]) {
       expectedFiles.add(name);
-      const path = join(detailsDir, name);
+      const path = join(directory, name);
       if (!detailFiles.includes(name)) {
-        errors.push(`${path}: missing catalog detail`);
+        errors.push(`${path}: missing detail file`);
         continue;
       }
 
@@ -173,21 +178,31 @@ export async function validateCatalogDetails(entries, detailsDir) {
 
   for (const name of detailFiles) {
     if (!expectedFiles.has(name)) {
-      errors.push(`${join(detailsDir, name)}: orphaned catalog detail`);
+      errors.push(`${join(directory, name)}: orphaned catalog detail`);
     }
   }
 
   return errors;
 }
 
+export async function validateCatalogRepository(source, detailsDir) {
+  const entries = await readCatalog(source);
+  return [
+    ...validateCatalog(entries),
+    ...await validateCatalogDetails(entries, detailsDir)
+  ];
+}
+
 async function main() {
-  const entries = await readCatalog(new URL("../catalog/plugins.json", import.meta.url));
-  const errors = validateCatalog(entries);
+  const errors = await validateCatalogRepository(
+    new URL("../catalog/plugins.json", import.meta.url),
+    new URL("../catalog/details/", import.meta.url)
+  );
   if (errors.length) {
     console.error(errors.join("\n"));
     process.exitCode = 1;
   } else {
-    console.log(`Validated ${entries.length} catalog entries.`);
+    console.log("Validated 8 catalog entries and bilingual details.");
   }
 }
 

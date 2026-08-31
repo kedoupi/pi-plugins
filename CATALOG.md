@@ -6,7 +6,7 @@ Status: `community` metadata checked · `tested` used by @kedoupi · `reviewed` 
 
 ## Automation
 
-### [Pi Subagents](https://github.com/nicobailon/pi-subagents)
+### [Pi Subagents](./catalog/details/pi-subagents.md)
 
 Adds delegation and scripted multi-agent workflows to Pi. Use it when you need repeatable task fanout and are ready to review the extra model and tool permissions it can invoke.
 
@@ -16,10 +16,11 @@ Adds delegation and scripted multi-agent workflows to Pi. Use it when you need r
 - License: MIT
 - Researched: 0.61.0 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/pi-subagents.md) · [简体中文](./catalog/details/pi-subagents.zh-CN.md) · [Upstream](https://github.com/nicobailon/pi-subagents)
 
 ## Communication
 
-### [AX Feishu Bridge](https://github.com/AX1202/ax-feishu-bridge)
+### [AX Feishu Bridge](./catalog/details/ax-feishu-bridge.md)
 
 Bridges Pi conversations into Feishu and Lark bots. Use it when you need chat access from Feishu/Lark and can review the bot credential setup first.
 
@@ -29,10 +30,11 @@ Bridges Pi conversations into Feishu and Lark bots. Use it when you need chat ac
 - License: MIT
 - Researched: 0.4.9 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/ax-feishu-bridge.md) · [简体中文](./catalog/details/ax-feishu-bridge.zh-CN.md) · [Upstream](https://github.com/AX1202/ax-feishu-bridge)
 
 ## Developer Tools
 
-### [Pi LSP](https://github.com/narumiruna/pi-extensions)
+### [Pi LSP](./catalog/details/pi-lsp.md)
 
 Exposes configurable LSP tooling through a shared Pi extension. Use it when you want language-server diagnostics and code actions without tying Pi to one language.
 
@@ -42,8 +44,9 @@ Exposes configurable LSP tooling through a shared Pi extension. Use it when you 
 - License: MIT
 - Researched: 0.49.6 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/pi-lsp.md) · [简体中文](./catalog/details/pi-lsp.zh-CN.md) · [Upstream](https://github.com/narumiruna/pi-extensions)
 
-### [Ponytail](https://github.com/DietrichGebert/ponytail)
+### [Ponytail](./catalog/details/ponytail.md)
 
 Adds an always-on minimalism discipline and focused skills for reducing over-engineering. Use it when you want coding agents to prefer YAGNI, standard-library solutions, and deletion over speculative abstractions.
 
@@ -53,10 +56,11 @@ Adds an always-on minimalism discipline and focused skills for reducing over-eng
 - License: MIT
 - Researched: 4.9.0 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/ponytail.md) · [简体中文](./catalog/details/ponytail.zh-CN.md) · [Upstream](https://github.com/DietrichGebert/ponytail)
 
 ## Memory
 
-### [Pi Memory](https://github.com/jayzeng/pi-memory)
+### [Pi Memory](./catalog/details/pi-memory.md)
 
 Adds persistent long-term memory, daily logs, a scratchpad, and optional semantic search to Pi. Use it when decisions and context must survive sessions and local Markdown storage fits your workflow.
 
@@ -66,10 +70,11 @@ Adds persistent long-term memory, daily logs, a scratchpad, and optional semanti
 - License: MIT
 - Researched: 0.4.2 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/pi-memory.md) · [简体中文](./catalog/details/pi-memory.zh-CN.md) · [Upstream](https://github.com/jayzeng/pi-memory)
 
 ## Research
 
-### [Pi Web Access](https://github.com/nicobailon/pi-web-access)
+### [Pi Web Access](./catalog/details/pi-web-access.md)
 
 Adds web search, page fetching, and content extraction tools to Pi. Use it when you need multi-provider web access and can audit the provider-specific credentials or browser-session features you enable.
 
@@ -79,10 +84,11 @@ Adds web search, page fetching, and content extraction tools to Pi. Use it when 
 - License: MIT
 - Researched: 0.27.0 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/pi-web-access.md) · [简体中文](./catalog/details/pi-web-access.zh-CN.md) · [Upstream](https://github.com/nicobailon/pi-web-access)
 
 ## User Interface
 
-### [Pi Powerline Footer](https://github.com/nicobailon/pi-powerline-footer)
+### [Pi Powerline Footer](./catalog/details/pi-powerline-footer.md)
 
 Adds a powerline-style status footer to Pi. Use it when you want a denser TUI status bar and your Pi version matches the published peer range.
 
@@ -92,10 +98,11 @@ Adds a powerline-style status footer to Pi. Use it when you want a denser TUI st
 - License: MIT
 - Researched: 0.16.0 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/pi-powerline-footer.md) · [简体中文](./catalog/details/pi-powerline-footer.zh-CN.md) · [Upstream](https://github.com/nicobailon/pi-powerline-footer)
 
 ## Workflow
 
-### [Superpowers](https://github.com/obra/superpowers)
+### [Superpowers](./catalog/details/superpowers.md)
 
 Adds a structured software-development methodology built from composable agent skills. Use it when you want explicit brainstorming, TDD, debugging, planning, review, and worktree workflows.
 
@@ -105,3 +112,4 @@ Adds a structured software-development methodology built from composable agent s
 - License: MIT
 - Researched: 6.3.0 on 2026-08-31
 - Tested: not tested by @kedoupi
+- Details: [English](./catalog/details/superpowers.md) · [简体中文](./catalog/details/superpowers.zh-CN.md) · [Upstream](https://github.com/obra/superpowers)

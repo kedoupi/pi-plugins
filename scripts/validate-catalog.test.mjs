@@ -6,7 +6,8 @@ import test from "node:test";
 import {
   CATALOG_DETAIL_SECTIONS,
   validateCatalog,
-  validateCatalogDetails
+  validateCatalogDetails,
+  validateCatalogRepository
 } from "./validate-catalog.mjs";
 
 const valid = {
@@ -82,17 +83,20 @@ No additional limitations documented.
 
 async function createDetailFixture(t, mutate) {
   const root = await mkdtemp(join(tmpdir(), "kedoupi-catalog-details-"));
-  const detailsDir = join(root, "catalog", "details");
+  const catalogDir = join(root, "catalog");
+  const detailsDir = join(catalogDir, "details");
+  const catalogPath = join(catalogDir, "plugins.json");
   const englishPath = join(detailsDir, `${detailValid.id}.md`);
   const chinesePath = join(detailsDir, `${detailValid.id}.zh-CN.md`);
 
   t.after(() => rm(root, { recursive: true, force: true }));
 
   await mkdir(detailsDir, { recursive: true });
+  await writeFile(catalogPath, JSON.stringify([detailValid], null, 2));
   await writeFile(englishPath, detailMarkdown(detailValid, "English"));
   await writeFile(chinesePath, detailMarkdown(detailValid, "Chinese"));
 
-  const context = { detailsDir, englishPath, chinesePath, valid: detailValid };
+  const context = { root, catalogPath, detailsDir, englishPath, chinesePath, valid: detailValid };
   if (mutate) await mutate(context);
   return context;
 }
@@ -176,13 +180,23 @@ test("accepts matching bilingual detail pages", async (t) => {
 test("reports missing Chinese detail pages", async (t) => {
   const { detailsDir, chinesePath, valid: entry } = await createDetailFixture(t, ({ chinesePath }) => rm(chinesePath));
   const errors = await validateCatalogDetails([entry], detailsDir);
-  assert(errors.some((error) => error.includes(chinesePath) && error.includes("missing catalog detail")));
+  assert(errors.some((error) => error.includes(chinesePath) && error.includes("missing detail file")));
 });
 
 test("reports orphan detail files", async (t) => {
   const { detailsDir, valid: entry } = await createDetailFixture(t, ({ detailsDir }) => writeFile(join(detailsDir, "orphan.md"), "# Orphan\n"));
   const errors = await validateCatalogDetails([entry], detailsDir);
   assert(errors.some((error) => error.includes(join(detailsDir, "orphan.md")) && error.includes("orphaned catalog detail")));
+});
+
+test("repository validation reports missing detail files", async (t) => {
+  const { catalogPath, detailsDir, englishPath } = await createDetailFixture(t, async ({ catalogPath, englishPath, valid }) => {
+    await rm(englishPath);
+    await writeFile(catalogPath, JSON.stringify([valid], null, 2));
+  });
+  const errors = await validateCatalogRepository(catalogPath, detailsDir);
+  assert(errors.some((error) => error.includes("missing detail file")));
+  assert(errors.some((error) => error.includes("example.md")));
 });
 
 test("reports missing Permissions and Security sections", async (t) => {

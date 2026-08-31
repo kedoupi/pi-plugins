@@ -25,7 +25,10 @@ test("renders stable catalog markdown", () => {
   const markdown = renderCatalog(entries);
   assert(markdown.startsWith("# Curated Pi Package Catalog\n"));
   assert(markdown.includes("## Workflow"));
-  assert(markdown.includes("[Tool A](https://github.com/example/tool-a)"));
+  assert(markdown.includes("### [Tool A](./catalog/details/tool-a.md)"));
+  assert(markdown.includes("[English](./catalog/details/tool-a.md)"));
+  assert(markdown.includes("[简体中文](./catalog/details/tool-a.zh-CN.md)"));
+  assert(markdown.includes("[Upstream](https://github.com/example/tool-a)"));
   assert(markdown.includes("Source: `npm:tool-a`"));
   assert(markdown.includes("Install: `pi install npm:tool-a`"));
   assert(markdown.includes("Researched: 1.0.0 on 2026-08-31"));

@@ -1,11 +1,27 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { catalogInstall } from "./catalog-source.mjs";
+import { readReadmeSections, validateReadme } from "./validate-readmes.mjs";
 
 const statuses = new Set(["community", "tested", "reviewed", "deprecated"]);
 const requiredStrings = [
   "id", "name", "source", "repository", "summary",
   "recommendation", "license", "status", "researchedVersion", "researchedAt"
+];
+
+export const CATALOG_DETAIL_SECTIONS = [
+  "About",
+  "Best For",
+  "Capabilities",
+  "Installation",
+  "Quick Start",
+  "Commands and Tools",
+  "Configuration",
+  "Permissions and Security",
+  "Compatibility",
+  "Limitations",
+  "Upstream and License"
 ];
 
 export async function readCatalog(path) {
@@ -81,6 +97,85 @@ export function validateCatalog(entries) {
     ids.add(entry.id);
     sources.add(entry.source);
   });
+
+  return errors;
+}
+
+function findSection(sections, name) {
+  const matches = sections.filter((section) => section.name === name);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function validateDetailMarkdown(entry, path, markdown, language) {
+  const errors = [...validateReadme(markdown, CATALOG_DETAIL_SECTIONS, path)];
+  const sections = readReadmeSections(markdown);
+
+  for (const token of [`[English](./${entry.id}.md)`, `[简体中文](./${entry.id}.zh-CN.md)`]) {
+    if (!markdown.includes(token)) errors.push(`${path}: missing language link: ${token}`);
+  }
+
+  const disclaimer = language === "English"
+    ? "Documentation review only; not a security guarantee."
+    : "仅审阅公开文档；不构成安全保证。";
+  if (!markdown.includes(disclaimer)) errors.push(`${path}: missing disclaimer: ${disclaimer}`);
+  if (!markdown.includes(entry.researchedVersion)) {
+    errors.push(`${path}: missing researched version: ${entry.researchedVersion}`);
+  }
+  if (!markdown.includes(entry.researchedAt)) {
+    errors.push(`${path}: missing researched date: ${entry.researchedAt}`);
+  }
+
+  const install = catalogInstall(entry.source);
+  const installation = findSection(sections, "Installation");
+  if (install && installation && !installation.body.join("\n").includes(install)) {
+    errors.push(`${path}: Installation must include: ${install}`);
+  }
+
+  const upstream = findSection(sections, "Upstream and License");
+  const upstreamBody = upstream?.body.join("\n") ?? "";
+  if (upstream && !upstreamBody.includes(entry.repository)) {
+    errors.push(`${path}: Upstream and License must include repository: ${entry.repository}`);
+  }
+  if (upstream && !upstreamBody.includes(entry.license)) {
+    errors.push(`${path}: Upstream and License must include license: ${entry.license}`);
+  }
+
+  return errors;
+}
+
+export async function validateCatalogDetails(entries, detailsDir) {
+  const errors = [];
+  let detailFiles = [];
+
+  try {
+    detailFiles = (await readdir(detailsDir, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => entry.name);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  const expectedFiles = new Set();
+  for (const entry of entries) {
+    for (const name of [`${entry.id}.md`, `${entry.id}.zh-CN.md`]) {
+      expectedFiles.add(name);
+      const path = join(detailsDir, name);
+      if (!detailFiles.includes(name)) {
+        errors.push(`${path}: missing catalog detail`);
+        continue;
+      }
+
+      const markdown = await readFile(path, "utf8");
+      const language = name.endsWith(".zh-CN.md") ? "Chinese" : "English";
+      errors.push(...validateDetailMarkdown(entry, path, markdown, language));
+    }
+  }
+
+  for (const name of detailFiles) {
+    if (!expectedFiles.has(name)) {
+      errors.push(`${join(detailsDir, name)}: orphaned catalog detail`);
+    }
+  }
 
   return errors;
 }

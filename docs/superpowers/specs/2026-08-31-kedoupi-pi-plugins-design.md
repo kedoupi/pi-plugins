@@ -1,7 +1,7 @@
 # Kedoupi Pi Plugins 设计规范
 
 - 日期：2026-08-31
-- 状态：待用户复核
+- 状态：已批准
 - GitHub 品牌：[`@kedoupi`](https://github.com/kedoupi)
 - 候选仓库：`kedoupi/pi-plugins`
 - 候选 npm scope：`@kedoupi`

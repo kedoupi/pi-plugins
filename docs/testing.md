@@ -33,10 +33,10 @@ Pi 可直接加载 TypeScript，因此没有实际构建产物需求的 Package 
 npm pack --workspaces --dry-run
 ```
 
-根门禁：
+根门禁与 CI 完全一致：
 
 ```bash
-npm ci
+npm ci --ignore-scripts
 npm run check
 npm test
 npm run pack:check
@@ -58,6 +58,6 @@ npm run pack:check
 
 ## CI gates
 
-所有 PR 在 GitHub Actions 中运行完整根门禁。初期只测试最低支持的 Node.js 22，出现真实跨版本问题后再扩充矩阵。
+所有 PR 在 GitHub Actions 中运行与本地一致的完整序列：`npm ci --ignore-scripts` → `npm run check` → `npm test` → `npm run pack:check`。初期只测试最低支持的 Node.js 22，出现真实跨版本问题后再扩充矩阵。
 
-CI 不持有模型 API Key，不调用收费模型。外部服务使用本地 stub；需要真实服务的验证属于受控手工测试。
+CI 不持有模型 API Key，也不调用收费模型或其他付费 API。检查内容只依赖仓库内代码、Node 标准库和本地 stub；需要真实服务凭据的验证属于受控手工测试。

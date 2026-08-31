@@ -362,7 +362,7 @@ const detailMarkdown = (entry, language) => `# ${entry.name}
 [English](./${entry.id}.md) | [简体中文](./${entry.id}.zh-CN.md)
 
 > Research basis: ${entry.researchedVersion}, checked ${entry.researchedAt}.
-> Documentation review only; not a security guarantee.
+> ${language === "English" ? "Documentation review only; not a security guarantee." : "仅审阅公开文档；不构成安全保证。"}
 
 ## About
 ${language} about.
@@ -794,7 +794,7 @@ git commit -m "docs: detail development Pi packages"
 
 **Interfaces:**
 - Consumes: 8 validated JSON entries and all 16 detail pages.
-- Produces: CLI validation of metadata plus details and generated detail/upstream links.
+- Produces: `validateCatalogRepository(source, detailsDir): Promise<string[]>` plus CLI validation of metadata/details and generated detail/upstream links.
 - Preserves: `npm run check`, `npm test`, and `npm run pack:check` as the complete public gate.
 
 - [ ] **Step 1: Add renderer link tests first**
@@ -810,9 +810,17 @@ assert(markdown.includes("[Upstream](https://github.com/example/tool-a)"));
 
 Keep existing source/install/researched assertions.
 
-- [ ] **Step 2: Add a CLI integration assertion**
+- [ ] **Step 2: Add a repository-level integration assertion**
 
-In `scripts/validate-catalog.test.mjs`, add a test around a repository fixture or exported main-level helper showing metadata passes but a missing detail pair fails. The assertion must include `missing detail file` and the expected English path.
+In `scripts/validate-catalog.test.mjs`, import the new Task 5 export `validateCatalogRepository`. Reuse the filesystem fixture from Task 2, remove the English page, write the entry array to a temporary `plugins.json`, then assert:
+
+```js
+const errors = await validateCatalogRepository(catalogPath, detailsDir);
+assert(errors.some((error) => error.includes("missing detail file")));
+assert(errors.some((error) => error.includes("example.md")));
+```
+
+This test must fail before the helper is implemented.
 
 - [ ] **Step 3: Run focused tests and observe red**
 
@@ -826,10 +834,25 @@ Expected: renderer link assertions fail; CLI/helper assertion fails because prod
 
 - [ ] **Step 4: Wire detail validation into the production CLI**
 
-In `scripts/validate-catalog.mjs`, have the CLI load `catalog/plugins.json`, validate metadata, then await:
+In `scripts/validate-catalog.mjs`, export this repository-level helper:
 
 ```js
-validateCatalogDetails(entries, new URL("../catalog/details/", import.meta.url))
+export async function validateCatalogRepository(source, detailsDir) {
+  const entries = await readCatalog(source);
+  return [
+    ...validateCatalog(entries),
+    ...await validateCatalogDetails(entries, detailsDir)
+  ];
+}
+```
+
+Have the CLI call it with:
+
+```js
+await validateCatalogRepository(
+  new URL("../catalog/plugins.json", import.meta.url),
+  new URL("../catalog/details/", import.meta.url)
+)
 ```
 
 Accept both filesystem path strings and file URLs in `validateCatalogDetails`, normalizing through Node path/URL utilities. Print `Validated 8 catalog entries and bilingual details.` on success.

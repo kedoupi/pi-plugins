@@ -1,0 +1,107 @@
+[
+  {
+    "id": "ax-feishu-bridge",
+    "name": "AX Feishu Bridge",
+    "package": "ax-feishu-bridge",
+    "repository": "https://github.com/AX1202/ax-feishu-bridge",
+    "install": "pi install npm:ax-feishu-bridge",
+    "categories": [
+      "communication"
+    ],
+    "summary": "Bridges Pi conversations into Feishu and Lark bots.",
+    "recommendation": "Use it when you need chat access from Feishu/Lark and can review the bot credential setup first.",
+    "license": "MIT",
+    "status": "community",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Handles bot credentials and outbound messaging; review the setup docs before enabling it in a workspace."
+    ]
+  },
+  {
+    "id": "pi-lsp",
+    "name": "Pi LSP",
+    "package": "@narumitw/pi-lsp",
+    "repository": "https://github.com/narumiruna/pi-extensions",
+    "install": "pi install npm:@narumitw/pi-lsp",
+    "categories": [
+      "developer-tools"
+    ],
+    "summary": "Exposes configurable LSP tooling through a shared Pi extension.",
+    "recommendation": "Use it when you want language-server diagnostics and code actions without tying Pi to one language.",
+    "license": "MIT",
+    "status": "community",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "The public source lives in a monorepo under packages/pi-lsp."
+    ]
+  },
+  {
+    "id": "pi-powerline-footer",
+    "name": "Pi Powerline Footer",
+    "package": "pi-powerline-footer",
+    "repository": "https://github.com/nicobailon/pi-powerline-footer",
+    "install": "pi install npm:pi-powerline-footer",
+    "categories": [
+      "user-interface"
+    ],
+    "summary": "Adds a powerline-style status footer to Pi.",
+    "recommendation": "Use it when you want a denser TUI status bar and your Pi version matches the published peer range.",
+    "license": "MIT",
+    "status": "community",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "The published peer dependency range targets Pi 0.81.x through 0.84.x."
+    ]
+  },
+  {
+    "id": "pi-subagents",
+    "name": "Pi Subagents",
+    "package": "pi-subagents",
+    "repository": "https://github.com/nicobailon/pi-subagents",
+    "install": "pi install npm:pi-subagents",
+    "categories": [
+      "automation"
+    ],
+    "summary": "Adds delegation and scripted multi-agent workflows to Pi.",
+    "recommendation": "Use it when you need repeatable task fanout and are ready to review the extra model and tool permissions it can invoke.",
+    "license": "MIT",
+    "status": "community",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Can launch background runs and additional agent sessions."
+    ]
+  },
+  {
+    "id": "pi-web-access",
+    "name": "Pi Web Access",
+    "package": "pi-web-access",
+    "repository": "https://github.com/nicobailon/pi-web-access",
+    "install": "pi install npm:pi-web-access",
+    "categories": [
+      "research"
+    ],
+    "summary": "Adds web search, page fetching, and content extraction tools to Pi.",
+    "recommendation": "Use it when you need multi-provider web access and can audit the provider-specific credentials or browser-session features you enable.",
+    "license": "MIT",
+    "status": "community",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Some providers use API keys, cookies, or browser-session access; enable only the integrations you trust."
+    ]
+  }
+]

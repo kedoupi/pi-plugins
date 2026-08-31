@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -14,6 +14,18 @@ const readme = (sections) => [
   "# Project",
   ...sections.flatMap((section) => ["", `## ${section}`, "", "Useful details."])
 ].join("\n");
+
+test("pins the required README section names", () => {
+  assert.deepEqual(ROOT_README_SECTIONS, [
+    "About", "Features", "Curated Catalog", "Repository Structure", "Development",
+    "Contributing", "Security", "Roadmap", "License"
+  ]);
+  assert.deepEqual(PACKAGE_README_SECTIONS, [
+    "About", "Installation", "Quick Start", "Commands, Tools, and Shortcuts",
+    "Configuration", "Environment Variables", "Permissions and Security",
+    "Known Conflicts", "Update and Rollback", "Compatibility", "License"
+  ]);
+});
 
 test("accepts complete root and Package README structures", () => {
   assert.deepEqual(validateReadme(readme(ROOT_README_SECTIONS), ROOT_README_SECTIONS, "README.md"), []);
@@ -42,6 +54,9 @@ test("validates root translations and discovered Package READMEs", async () => {
 
   await writeFile(join(packageDir, "README.md"), "# Demo\n");
   assert((await validateReadmes(root)).some((error) => error.includes("missing section: Installation")));
+
+  await rm(join(root, "README.zh-CN.md"));
+  assert((await validateReadmes(root)).some((error) => error.includes("README.zh-CN.md: missing README")));
 });
 
 test("requires suite membership and switching instructions", async () => {

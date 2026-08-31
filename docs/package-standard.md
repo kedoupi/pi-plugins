@@ -1,6 +1,6 @@
 # First-party Package Standard
 
-每个 `packages/pi-*` 必须是完整独立的 npm 与 Pi Package。本标准是人工规则；确定性检查由 `scripts/validate-packages.mjs` 执行。
+每个 `packages/pi-*` 必须是完整独立的 npm 与 Pi Package。本标准是人工规则；确定性检查由 `scripts/validate-packages.mjs` 与 `scripts/validate-readmes.mjs` 执行。
 
 ## Naming and ownership
 

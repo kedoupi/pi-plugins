@@ -2,9 +2,8 @@
   {
     "id": "ax-feishu-bridge",
     "name": "AX Feishu Bridge",
-    "package": "ax-feishu-bridge",
+    "source": "npm:ax-feishu-bridge",
     "repository": "https://github.com/AX1202/ax-feishu-bridge",
-    "install": "pi install npm:ax-feishu-bridge",
     "categories": [
       "communication"
     ],
@@ -12,6 +11,8 @@
     "recommendation": "Use it when you need chat access from Feishu/Lark and can review the bot credential setup first.",
     "license": "MIT",
     "status": "community",
+    "researchedVersion": "0.4.9",
+    "researchedAt": "2026-08-31",
     "testedVersion": null,
     "testedPiVersion": null,
     "testedAt": null,
@@ -23,9 +24,8 @@
   {
     "id": "pi-lsp",
     "name": "Pi LSP",
-    "package": "@narumitw/pi-lsp",
+    "source": "npm:@narumitw/pi-lsp",
     "repository": "https://github.com/narumiruna/pi-extensions",
-    "install": "pi install npm:@narumitw/pi-lsp",
     "categories": [
       "developer-tools"
     ],
@@ -33,6 +33,8 @@
     "recommendation": "Use it when you want language-server diagnostics and code actions without tying Pi to one language.",
     "license": "MIT",
     "status": "community",
+    "researchedVersion": "0.49.6",
+    "researchedAt": "2026-08-31",
     "testedVersion": null,
     "testedPiVersion": null,
     "testedAt": null,
@@ -42,11 +44,32 @@
     ]
   },
   {
+    "id": "pi-memory",
+    "name": "Pi Memory",
+    "source": "npm:pi-memory",
+    "repository": "https://github.com/jayzeng/pi-memory",
+    "categories": [
+      "memory"
+    ],
+    "summary": "Adds persistent long-term memory, daily logs, a scratchpad, and optional semantic search to Pi.",
+    "recommendation": "Use it when decisions and context must survive sessions and local Markdown storage fits your workflow.",
+    "license": "MIT",
+    "status": "community",
+    "researchedVersion": "0.4.2",
+    "researchedAt": "2026-08-31",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Semantic and deep search optionally invoke qmd and local embedding workflows."
+    ]
+  },
+  {
     "id": "pi-powerline-footer",
     "name": "Pi Powerline Footer",
-    "package": "pi-powerline-footer",
+    "source": "npm:pi-powerline-footer",
     "repository": "https://github.com/nicobailon/pi-powerline-footer",
-    "install": "pi install npm:pi-powerline-footer",
     "categories": [
       "user-interface"
     ],
@@ -54,6 +77,8 @@
     "recommendation": "Use it when you want a denser TUI status bar and your Pi version matches the published peer range.",
     "license": "MIT",
     "status": "community",
+    "researchedVersion": "0.16.0",
+    "researchedAt": "2026-08-31",
     "testedVersion": null,
     "testedPiVersion": null,
     "testedAt": null,
@@ -65,9 +90,8 @@
   {
     "id": "pi-subagents",
     "name": "Pi Subagents",
-    "package": "pi-subagents",
+    "source": "npm:pi-subagents",
     "repository": "https://github.com/nicobailon/pi-subagents",
-    "install": "pi install npm:pi-subagents",
     "categories": [
       "automation"
     ],
@@ -75,6 +99,8 @@
     "recommendation": "Use it when you need repeatable task fanout and are ready to review the extra model and tool permissions it can invoke.",
     "license": "MIT",
     "status": "community",
+    "researchedVersion": "0.61.0",
+    "researchedAt": "2026-08-31",
     "testedVersion": null,
     "testedPiVersion": null,
     "testedAt": null,
@@ -86,9 +112,8 @@
   {
     "id": "pi-web-access",
     "name": "Pi Web Access",
-    "package": "pi-web-access",
+    "source": "npm:pi-web-access",
     "repository": "https://github.com/nicobailon/pi-web-access",
-    "install": "pi install npm:pi-web-access",
     "categories": [
       "research"
     ],
@@ -96,12 +121,58 @@
     "recommendation": "Use it when you need multi-provider web access and can audit the provider-specific credentials or browser-session features you enable.",
     "license": "MIT",
     "status": "community",
+    "researchedVersion": "0.27.0",
+    "researchedAt": "2026-08-31",
     "testedVersion": null,
     "testedPiVersion": null,
     "testedAt": null,
     "conflicts": [],
     "notes": [
       "Some providers use API keys, cookies, or browser-session access; enable only the integrations you trust."
+    ]
+  },
+  {
+    "id": "ponytail",
+    "name": "Ponytail",
+    "source": "npm:@dietrichgebert/ponytail",
+    "repository": "https://github.com/DietrichGebert/ponytail",
+    "categories": [
+      "developer-tools"
+    ],
+    "summary": "Adds an always-on minimalism discipline and focused skills for reducing over-engineering.",
+    "recommendation": "Use it when you want coding agents to prefer YAGNI, standard-library solutions, and deletion over speculative abstractions.",
+    "license": "MIT",
+    "status": "community",
+    "researchedVersion": "4.9.0",
+    "researchedAt": "2026-08-31",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Changes coding-agent behavior through an extension and skills rather than changing project runtime code."
+    ]
+  },
+  {
+    "id": "superpowers",
+    "name": "Superpowers",
+    "source": "git:github.com/obra/superpowers",
+    "repository": "https://github.com/obra/superpowers",
+    "categories": [
+      "workflow"
+    ],
+    "summary": "Adds a structured software-development methodology built from composable agent skills.",
+    "recommendation": "Use it when you want explicit brainstorming, TDD, debugging, planning, review, and worktree workflows.",
+    "license": "MIT",
+    "status": "community",
+    "researchedVersion": "6.3.0",
+    "researchedAt": "2026-08-31",
+    "testedVersion": null,
+    "testedPiVersion": null,
+    "testedAt": null,
+    "conflicts": [],
+    "notes": [
+      "Its behavioral skills add approval gates and process requirements to coding tasks."
     ]
   }
 ]

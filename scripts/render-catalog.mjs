@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { catalogInstall } from "./catalog-source.mjs";
 import { readCatalog, validateCatalog } from "./validate-catalog.mjs";
 
 const title = (value) => value.replace(/(^|-)([a-z])/g, (_match, dash, letter) => `${dash ? " " : ""}${letter.toUpperCase()}`);
@@ -33,9 +34,10 @@ export function renderCatalog(entries) {
         `${entry.summary} ${entry.recommendation}`,
         "",
         `- Status: \`${entry.status}\``,
-        `- Package: \`${entry.package}\``,
-        `- Install: \`${entry.install}\``,
+        `- Source: \`${entry.source}\``,
+        `- Install: \`${catalogInstall(entry.source)}\``,
         `- License: ${entry.license}`,
+        `- Researched: ${entry.researchedVersion} on ${entry.researchedAt}`,
         `- Tested: ${entry.testedAt ?? "not tested by @kedoupi"}`,
         ""
       );

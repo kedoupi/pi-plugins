@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { catalogInstall } from "./catalog-source.mjs";
 
 const statuses = new Set(["community", "tested", "reviewed", "deprecated"]);
 const requiredStrings = [
-  "id", "name", "package", "repository", "install", "summary",
-  "recommendation", "license", "status"
+  "id", "name", "source", "repository", "summary",
+  "recommendation", "license", "status", "researchedVersion", "researchedAt"
 ];
 
 export async function readCatalog(path) {
@@ -15,7 +16,7 @@ export function validateCatalog(entries) {
   if (!Array.isArray(entries)) return ["catalog must be an array"];
   const errors = [];
   const ids = new Set();
-  const packages = new Set();
+  const sources = new Set();
 
   entries.forEach((entry, index) => {
     const at = `entry ${index}`;
@@ -28,6 +29,9 @@ export function validateCatalog(entries) {
         errors.push(`${at}: ${key} must be a non-empty string`);
       }
     }
+    for (const key of ["package", "install"]) {
+      if (Object.hasOwn(entry, key)) errors.push(`${at}: legacy field: ${key}`);
+    }
     for (const key of ["categories", "conflicts", "notes"]) {
       if (!Array.isArray(entry[key]) || entry[key].some((value) => typeof value !== "string")) {
         errors.push(`${at}: ${key} must be an array of strings`);
@@ -39,8 +43,19 @@ export function validateCatalog(entries) {
     if (typeof entry.repository === "string" && !entry.repository.startsWith("https://github.com/")) {
       errors.push(`${at}: repository must be an https://github.com URL`);
     }
-    if (typeof entry.package === "string" && entry.install !== `pi install npm:${entry.package}`) {
-      errors.push(`${at}: install must match package`);
+    if (catalogInstall(entry.source) === null) {
+      errors.push(`${at}: invalid source: ${entry.source}`);
+    }
+    if (typeof entry.researchedAt === "string" && !/^\d{4}-\d{2}-\d{2}$/.test(entry.researchedAt)) {
+      errors.push(`${at}: researchedAt must use YYYY-MM-DD`);
+    }
+    if (
+      typeof entry.source === "string" &&
+      entry.source.startsWith("git:") &&
+      typeof entry.repository === "string" &&
+      entry.repository !== `https://${entry.source.slice("git:".length)}`
+    ) {
+      errors.push(`${at}: Git source must match repository`);
     }
     if (!statuses.has(entry.status)) errors.push(`${at}: invalid status`);
 
@@ -62,9 +77,9 @@ export function validateCatalog(entries) {
       errors.push(`${at}: testedAt must use YYYY-MM-DD`);
     }
     if (ids.has(entry.id)) errors.push(`duplicate id: ${entry.id}`);
-    if (packages.has(entry.package)) errors.push(`duplicate package: ${entry.package}`);
+    if (sources.has(entry.source)) errors.push(`duplicate source: ${entry.source}`);
     ids.add(entry.id);
-    packages.add(entry.package);
+    sources.add(entry.source);
   });
 
   return errors;

@@ -24,11 +24,24 @@ export function renderCatalog(entries) {
     ""
   ];
 
-  for (const category of [...categories.keys()].sort()) {
+  const sortedCategories = [...categories.keys()].sort();
+  if (sortedCategories.length) {
+    lines.push("## Contents", "");
+    for (const category of sortedCategories) {
+      lines.push(`- [${title(category)}](#${category})`);
+      for (const entry of [...categories.get(category)].sort((a, b) => a.name.localeCompare(b.name, "en"))) {
+        lines.push(`  - [${entry.name}](#${category}--${entry.id})`);
+      }
+    }
+    lines.push("");
+  }
+
+  for (const category of sortedCategories) {
     lines.push(`## ${title(category)}`, "");
-    const items = categories.get(category).sort((a, b) => a.name.localeCompare(b.name, "en"));
+    const items = [...categories.get(category)].sort((a, b) => a.name.localeCompare(b.name, "en"));
     for (const entry of items) {
       lines.push(
+        `<a id="${category}--${entry.id}"></a>`,
         `### [${entry.name}](./catalog/details/${entry.id}.md)`,
         "",
         `${entry.summary} ${entry.recommendation}`,

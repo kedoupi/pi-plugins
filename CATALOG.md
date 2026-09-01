@@ -4,8 +4,27 @@
 
 Status: `community` metadata checked · `tested` used by @kedoupi · `reviewed` source and sensitive operations additionally inspected · `deprecated` no longer recommended.
 
+## Contents
+
+- [Automation](#automation)
+  - [Pi Subagents](#automation--pi-subagents)
+- [Communication](#communication)
+  - [AX Feishu Bridge](#communication--ax-feishu-bridge)
+- [Developer Tools](#developer-tools)
+  - [Pi LSP](#developer-tools--pi-lsp)
+  - [Ponytail](#developer-tools--ponytail)
+- [Memory](#memory)
+  - [Pi Memory](#memory--pi-memory)
+- [Research](#research)
+  - [Pi Web Access](#research--pi-web-access)
+- [User Interface](#user-interface)
+  - [Pi Powerline Footer](#user-interface--pi-powerline-footer)
+- [Workflow](#workflow)
+  - [Superpowers](#workflow--superpowers)
+
 ## Automation
 
+<a id="automation--pi-subagents"></a>
 ### [Pi Subagents](./catalog/details/pi-subagents.md)
 
 Adds delegation and scripted multi-agent workflows to Pi. Use it when you need repeatable task fanout and are ready to review the extra model and tool permissions it can invoke.
@@ -20,6 +39,7 @@ Adds delegation and scripted multi-agent workflows to Pi. Use it when you need r
 
 ## Communication
 
+<a id="communication--ax-feishu-bridge"></a>
 ### [AX Feishu Bridge](./catalog/details/ax-feishu-bridge.md)
 
 Bridges Pi conversations into Feishu and Lark bots. Use it when you need chat access from Feishu/Lark and can review the bot credential setup first.
@@ -34,6 +54,7 @@ Bridges Pi conversations into Feishu and Lark bots. Use it when you need chat ac
 
 ## Developer Tools
 
+<a id="developer-tools--pi-lsp"></a>
 ### [Pi LSP](./catalog/details/pi-lsp.md)
 
 Exposes configurable LSP tooling through a shared Pi extension. Use it when you want language-server diagnostics and code actions without tying Pi to one language.
@@ -46,6 +67,7 @@ Exposes configurable LSP tooling through a shared Pi extension. Use it when you 
 - Tested: not tested by @kedoupi
 - Details: [English](./catalog/details/pi-lsp.md) · [简体中文](./catalog/details/pi-lsp.zh-CN.md) · [Upstream](https://github.com/narumiruna/pi-extensions)
 
+<a id="developer-tools--ponytail"></a>
 ### [Ponytail](./catalog/details/ponytail.md)
 
 Adds an always-on minimalism discipline and focused skills for reducing over-engineering. Use it when you want coding agents to prefer YAGNI, standard-library solutions, and deletion over speculative abstractions.
@@ -60,6 +82,7 @@ Adds an always-on minimalism discipline and focused skills for reducing over-eng
 
 ## Memory
 
+<a id="memory--pi-memory"></a>
 ### [Pi Memory](./catalog/details/pi-memory.md)
 
 Adds persistent long-term memory, daily logs, a scratchpad, and optional semantic search to Pi. Use it when decisions and context must survive sessions and local Markdown storage fits your workflow.
@@ -74,6 +97,7 @@ Adds persistent long-term memory, daily logs, a scratchpad, and optional semanti
 
 ## Research
 
+<a id="research--pi-web-access"></a>
 ### [Pi Web Access](./catalog/details/pi-web-access.md)
 
 Adds web search, page fetching, and content extraction tools to Pi. Use it when you need multi-provider web access and can audit the provider-specific credentials or browser-session features you enable.
@@ -88,6 +112,7 @@ Adds web search, page fetching, and content extraction tools to Pi. Use it when 
 
 ## User Interface
 
+<a id="user-interface--pi-powerline-footer"></a>
 ### [Pi Powerline Footer](./catalog/details/pi-powerline-footer.md)
 
 Adds a powerline-style status footer to Pi. Use it when you want a denser TUI status bar and your Pi version matches the published peer range.
@@ -102,6 +127,7 @@ Adds a powerline-style status footer to Pi. Use it when you want a denser TUI st
 
 ## Workflow
 
+<a id="workflow--superpowers"></a>
 ### [Superpowers](./catalog/details/superpowers.md)
 
 Adds a structured software-development methodology built from composable agent skills. Use it when you want explicit brainstorming, TDD, debugging, planning, review, and worktree workflows.

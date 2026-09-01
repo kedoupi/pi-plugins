@@ -106,9 +106,16 @@ export function createAssistantControl(
         await sleep(50);
       }
       const assistantOwner = await lock.read();
-      await store.updateOwnership(key, (current) =>
-        current?.state === "requested" &&
-        current.requestId === request.requestId
+      await store.updateOwnership(key, (current) => {
+        const matchesPending =
+          current?.requestId === request.requestId &&
+          (current.state === "requested" || current.state === "releasing");
+        const matchesGranted =
+          current?.owner === "window" &&
+          current.state === "owned" &&
+          current.pid === windowPid &&
+          current.requestId === request.requestId;
+        return matchesPending || matchesGranted
           ? {
               ...current,
               owner: "assistant",
@@ -116,8 +123,8 @@ export function createAssistantControl(
               pid: assistantOwner?.pid ?? process.pid,
               heartbeatAt: new Date().toISOString(),
             }
-          : current,
-      );
+          : current;
+      });
       return {
         ok: false,
         code: "ownership-timeout",

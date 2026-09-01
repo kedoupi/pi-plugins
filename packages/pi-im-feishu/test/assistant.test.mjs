@@ -7,6 +7,7 @@ import { runAssistant } from "../src/assistant.mjs";
 import { createAssistantControl } from "../src/assistant-control.mjs";
 import { createAutostart } from "../src/autostart.mjs";
 import { createLock } from "../src/lock.mjs";
+import { createOwnershipCoordinator } from "../src/ownership.mjs";
 import { createStore } from "../src/store.mjs";
 
 function fakeTransport({ ready = true } = {}) {
@@ -158,6 +159,67 @@ test("SDK startup failure is visible and releases the process lock before transp
   );
   assert.equal(transport.started, false);
   assert.equal(await createLock(home).read(), null);
+});
+
+test("attach timeout reclaims a request while the assistant is still releasing", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-attach-timeout-"));
+  const sessionFile = join(home, "session.jsonl");
+  await writeFile(sessionFile, "{}\n");
+  const control = createAssistantControl(home, {
+    autostart: createAutostart(),
+  });
+  await control.store.upsertChat("p2p:a", {
+    folder: home,
+    sessionFile,
+  });
+
+  let beginRelease;
+  const releaseStarted = new Promise((resolve) => {
+    beginRelease = resolve;
+  });
+  let finishRelease;
+  const releaseFinished = new Promise((resolve) => {
+    finishRelease = resolve;
+  });
+  const assistant = createOwnershipCoordinator({
+    store: control.store,
+    worker: {
+      async release() {
+        beginRelease();
+        await releaseFinished;
+      },
+    },
+    runner: {
+      async release() {
+        return { sessionFile };
+      },
+    },
+    pid: 4001,
+  });
+
+  const attaching = control.attach("p2p:a", home, 4101);
+  while ((await control.store.readOwnership("p2p:a"))?.state !== "requested") {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const serving = assistant.serveRequests();
+  await releaseStarted;
+
+  try {
+    const result = await attaching;
+    assert.equal(result.code, "ownership-timeout");
+    const lease = await control.store.readOwnership("p2p:a");
+    assert.deepEqual(
+      { owner: lease.owner, state: lease.state },
+      { owner: "assistant", state: "owned" },
+    );
+  } finally {
+    finishRelease();
+    await serving;
+  }
+
+  assert.equal((await control.store.readOwnership("p2p:a")).owner, "assistant");
+  await assistant.requestWindow("p2p:a", { pid: 4102 });
+  assert.equal((await control.store.readOwnership("p2p:a")).state, "requested");
 });
 
 test("attach validates the session and waits for the assistant grant", async () => {

@@ -11,7 +11,9 @@ import { createStore } from "../src/store.mjs";
 const assistantUrl = pathToFileURL(
   join(import.meta.dirname, "../src/assistant.mjs"),
 ).href;
-const lockUrl = pathToFileURL(join(import.meta.dirname, "../src/lock.mjs")).href;
+const lockUrl = pathToFileURL(
+  join(import.meta.dirname, "../src/lock.mjs"),
+).href;
 
 async function boundHome(name) {
   const home = await mkdtemp(join(tmpdir(), `pi-im-feishu-${name}-`));

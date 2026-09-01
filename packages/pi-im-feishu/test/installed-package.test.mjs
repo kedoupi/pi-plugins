@@ -16,10 +16,11 @@ import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageDir = join(import.meta.dirname, "..");
-const exists = (path) => access(path).then(
-  () => true,
-  () => false,
-);
+const exists = (path) =>
+  access(path).then(
+    () => true,
+    () => false,
+  );
 
 async function packageRoot(specifier) {
   let current = dirname(fileURLToPath(import.meta.resolve(specifier)));
@@ -45,7 +46,11 @@ async function extractTarball(tarball, installed, peerDir) {
   await rm(installed, { recursive: true, force: true });
   await mkdir(installed, { recursive: true });
   checked("tar", ["-xzf", tarball, "-C", installed, "--strip-components=1"]);
-  const peerLink = join(dirname(dirname(installed)), "@earendil-works", "pi-coding-agent");
+  const peerLink = join(
+    dirname(dirname(installed)),
+    "@earendil-works",
+    "pi-coding-agent",
+  );
   await mkdir(dirname(peerLink), { recursive: true });
   await rm(peerLink, { recursive: true, force: true });
   await symlink(peerDir, peerLink, "dir");
@@ -114,55 +119,62 @@ test("installed tarball works offline and preserves machine state", async (t) =>
     assert.equal(result.stdout.trim(), "function");
   });
 
-  await t.test("loads with no UI and print or JSON commands do nothing", async () => {
-    const previousHome = process.env.PI_IM_FEISHU_HOME;
-    process.env.PI_IM_FEISHU_HOME = stateHome;
-    try {
-      const { loadPiSdk } = await import(
-        pathToFileURL(join(installed, "src/pi-session.mjs")).href
-      );
-      const sdk = await loadPiSdk();
-      const loaded = await sdk.discoverAndLoadExtensions(
-        [join(installed, "extensions/index.ts")],
-        fixture,
-        join(fixture, "agent"),
-      );
-      assert.deepEqual(loaded.errors, []);
-      assert.equal(loaded.extensions.length, 1);
-      const extension = loaded.extensions[0];
-      assert.equal(extension.handlers.has("session_start"), true);
-      const commandDefinition = extension.commands.get("feishu");
-      assert.equal(typeof commandDefinition.handler, "function");
-      const notifications = [];
-      for (const mode of ["print", "json"]) {
-        for (const command of [
-          "setup qr",
-          "setup manual cli_fixture feishu",
-          "start",
-          "stop",
-          "folder p2p:fixture /tmp/project",
-          "attach p2p:fixture",
-        ]) {
-          await commandDefinition.handler(command, {
-            hasUI: false,
-            mode,
-            ui: { notify: (message) => notifications.push(message) },
-          });
+  await t.test(
+    "loads with no UI and print or JSON commands do nothing",
+    async () => {
+      const previousHome = process.env.PI_IM_FEISHU_HOME;
+      process.env.PI_IM_FEISHU_HOME = stateHome;
+      try {
+        const { loadPiSdk } = await import(
+          pathToFileURL(join(installed, "src/pi-session.mjs")).href
+        );
+        const sdk = await loadPiSdk();
+        const loaded = await sdk.discoverAndLoadExtensions(
+          [join(installed, "extensions/index.ts")],
+          fixture,
+          join(fixture, "agent"),
+        );
+        assert.deepEqual(loaded.errors, []);
+        assert.equal(loaded.extensions.length, 1);
+        const extension = loaded.extensions[0];
+        assert.equal(extension.handlers.has("session_start"), true);
+        const commandDefinition = extension.commands.get("feishu");
+        assert.equal(typeof commandDefinition.handler, "function");
+        const notifications = [];
+        for (const mode of ["print", "json"]) {
+          for (const command of [
+            "setup qr",
+            "setup manual cli_fixture feishu",
+            "start",
+            "stop",
+            "folder p2p:fixture /tmp/project",
+            "attach p2p:fixture",
+          ]) {
+            await commandDefinition.handler(command, {
+              hasUI: false,
+              mode,
+              ui: { notify: (message) => notifications.push(message) },
+            });
+          }
         }
+        assert.equal(notifications.length, 12);
+        assert.equal(await exists(stateHome), false);
+      } finally {
+        if (previousHome === undefined) delete process.env.PI_IM_FEISHU_HOME;
+        else process.env.PI_IM_FEISHU_HOME = previousHome;
       }
-      assert.equal(notifications.length, 12);
-      assert.equal(await exists(stateHome), false);
-    } finally {
-      if (previousHome === undefined) delete process.env.PI_IM_FEISHU_HOME;
-      else process.env.PI_IM_FEISHU_HOME = previousHome;
-    }
-  });
+    },
+  );
 
   await t.test("starts and stops using installed runtime modules", async () => {
-    const [{ createAssistantControl }, { createAutostart }] = await Promise.all([
-      import(pathToFileURL(join(installed, "src/assistant-control.mjs")).href),
-      import(pathToFileURL(join(installed, "src/autostart.mjs")).href),
-    ]);
+    const [{ createAssistantControl }, { createAutostart }] = await Promise.all(
+      [
+        import(
+          pathToFileURL(join(installed, "src/assistant-control.mjs")).href
+        ),
+        import(pathToFileURL(join(installed, "src/autostart.mjs")).href),
+      ],
+    );
     const control = createAssistantControl(stateHome, {
       autostart: createAutostart(),
       runner: async ({ lock }) => {
@@ -180,31 +192,46 @@ test("installed tarball works offline and preserves machine state", async (t) =>
     assert.equal((await control.stop()).status, "offline");
   });
 
-  await t.test("update, uninstall, and rollback leave machine state intact", async () => {
-    const configBefore = await readFile(join(stateHome, "config.json"), "utf8");
+  await t.test(
+    "update, uninstall, and rollback leave machine state intact",
+    async () => {
+      const configBefore = await readFile(
+        join(stateHome, "config.json"),
+        "utf8",
+      );
 
-    await rm(installed, { recursive: true, force: true });
-    await mkdir(installed, { recursive: true });
-    await mkdir(join(installed, "simulated-update"));
-    assert.equal(await readFile(join(stateHome, "config.json"), "utf8"), configBefore);
+      await rm(installed, { recursive: true, force: true });
+      await mkdir(installed, { recursive: true });
+      await mkdir(join(installed, "simulated-update"));
+      assert.equal(
+        await readFile(join(stateHome, "config.json"), "utf8"),
+        configBefore,
+      );
 
-    await extractTarball(tarball, installed, peerDir);
-    const { createStore } = await import(
-      `${pathToFileURL(join(installed, "src/store.mjs")).href}?rollback=1`
-    );
-    assert.equal((await createStore(stateHome).status()).configured, true);
+      await extractTarball(tarball, installed, peerDir);
+      const { createStore } = await import(
+        `${pathToFileURL(join(installed, "src/store.mjs")).href}?rollback=1`
+      );
+      assert.equal((await createStore(stateHome).status()).configured, true);
 
-    await rm(installed, { recursive: true, force: true });
-    assert.equal(await readFile(join(stateHome, "config.json"), "utf8"), configBefore);
-    assert.equal((await lstat(stateHome)).isDirectory(), true);
-  });
+      await rm(installed, { recursive: true, force: true });
+      assert.equal(
+        await readFile(join(stateHome, "config.json"), "utf8"),
+        configBefore,
+      );
+      assert.equal((await lstat(stateHome)).isDirectory(), true);
+    },
+  );
 
-  await t.test("contains no private checkout path or fixture credential", async () => {
-    await extractTarball(tarball, installed, peerDir);
-    for (const file of await textFiles(installed)) {
-      const text = await readFile(file, "utf8").catch(() => "");
-      assert.equal(text.includes(packageDir), false, file);
-      assert.equal(text.includes("fixture-secret-not-real"), false, file);
-    }
-  });
+  await t.test(
+    "contains no private checkout path or fixture credential",
+    async () => {
+      await extractTarball(tarball, installed, peerDir);
+      for (const file of await textFiles(installed)) {
+        const text = await readFile(file, "utf8").catch(() => "");
+        assert.equal(text.includes(packageDir), false, file);
+        assert.equal(text.includes("fixture-secret-not-real"), false, file);
+      }
+    },
+  );
 });

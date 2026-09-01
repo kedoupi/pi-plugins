@@ -1,15 +1,10 @@
-const DESTRUCTIVE_BASH = /\b(rm|rmdir|dd|mkfs|chmod\s+777|curl\s+[^\n]*\|\s*(ba)?sh)\b/;
-
 export function isImportantTool(name, input = {}) {
   const tool = String(name ?? "");
   if (tool === "bash" || tool === "shell") {
-    return DESTRUCTIVE_BASH.test(String(input.command ?? ""));
+    const command = String(input.command ?? "").trim();
+    return command !== "pwd" && command !== "ls";
   }
-  if (tool === "write" || tool === "edit") {
-    return input.overwrite === true || input.create === false;
-  }
-  if (tool === "delete" || tool === "rm") return true;
-  return false;
+  return ["write", "edit", "delete", "rm"].includes(tool);
 }
 
 export function confirmText({ kind, detail }) {

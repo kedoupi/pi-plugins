@@ -1,13 +1,30 @@
-import { isImportantTool } from "./important.mjs";
+import { classifyToolCall } from "./tool-policy.mjs";
 
 export const CHILD_ENV = "PI_IM_FEISHU_ASSISTANT";
+export const CODING_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"];
+
+function sdkError(cause) {
+  return Object.assign(new Error("Pi SDK 未安装或不可用，无法启动飞书助手。", { cause }), {
+    code: "pi-sdk-missing",
+  });
+}
 
 export async function loadPiSdk() {
+  let pi;
   try {
-    return await import("@earendil-works/pi-coding-agent");
-  } catch {
-    return null;
+    pi = await import("@earendil-works/pi-coding-agent");
+  } catch (error) {
+    throw sdkError(error);
   }
+  if (
+    typeof pi.createAgentSession !== "function" ||
+    typeof pi.SessionManager !== "function" ||
+    typeof pi.DefaultResourceLoader !== "function" ||
+    typeof pi.getAgentDir !== "function"
+  ) {
+    throw sdkError();
+  }
+  return pi;
 }
 
 export function assistantText(session) {
@@ -20,9 +37,18 @@ export function assistantText(session) {
   return "";
 }
 
-export function interceptToolCalls(session, confirm, inbound) {
+function skipped(text) {
+  return { content: [{ type: "text", text }] };
+}
+
+export function interceptToolCalls(
+  session,
+  confirm,
+  inbound,
+  { folder, secrets = [] } = {},
+) {
   const tools = session?.agent?.state?.tools ?? session?.tools;
-  if (!Array.isArray(tools) || typeof confirm !== "function") return () => {};
+  if (!Array.isArray(tools)) return () => {};
   const originals = [];
   for (const tool of tools) {
     if (typeof tool?.execute !== "function") continue;
@@ -30,15 +56,15 @@ export function interceptToolCalls(session, confirm, inbound) {
     originals.push([tool, original]);
     tool.execute = async (...args) => {
       const input = args[1] && typeof args[1] === "object" ? args[1] : args[0];
-      if (isImportantTool(tool.name, input ?? {})) {
-        const ok = await confirm({
+      const decision = await classifyToolCall(tool.name, input ?? {}, { folder, secrets });
+      if (decision.blocked) return skipped("工具调用超出工作区，已阻止并跳过。");
+      if (decision.confirm) {
+        const ok = typeof confirm === "function" && await confirm({
           inbound,
           kind: tool.name,
-          detail: typeof input === "string" ? input : JSON.stringify(input ?? {}).slice(0, 500)
+          detail: decision.detail,
         });
-        if (!ok) {
-          return { content: [{ type: "text", text: "用户未确认，已跳过。" }] };
-        }
+        if (!ok) return skipped("用户未确认，已跳过。");
       }
       return original.apply(tool, args);
     };
@@ -49,39 +75,65 @@ export function interceptToolCalls(session, confirm, inbound) {
 }
 
 export function createResourceLoader(pi, folder) {
-  if (typeof pi.DefaultResourceLoader !== "function") return undefined;
   return new pi.DefaultResourceLoader({
     cwd: folder,
-    additionalExtensionPaths: []
+    agentDir: pi.getAgentDir(),
+    noExtensions: true,
+    noPromptTemplates: true,
+    noThemes: true,
   });
 }
 
-/**
- * Reuses one AgentSession per chat. Nested sessions must not load this package
- * as an extension: the assistant process sets PI_IM_FEISHU_ASSISTANT=1 and the
- * TUI factory no-ops. ResourceLoader is still passed when the SDK has one.
- */
-export function createPiRunPrompt(pi) {
-  if (!pi?.createAgentSession || !pi.SessionManager) return null;
+/** Reuses one isolated AgentSession per chat key and exact session file. */
+export function createPiRunPrompt(pi, { secrets = [] } = {}) {
+  if (
+    typeof pi?.createAgentSession !== "function" ||
+    typeof pi?.SessionManager !== "function" ||
+    typeof pi?.DefaultResourceLoader !== "function" ||
+    typeof pi?.getAgentDir !== "function"
+  ) {
+    throw sdkError();
+  }
   const pool = new Map();
 
+  async function disposeEntry(entry) {
+    await entry?.session?.dispose?.();
+  }
+
   async function sessionFor(key, folder, sessionFile) {
+    const requestedSessionFile = sessionFile ?? null;
     const cached = pool.get(key);
-    if (cached && cached.folder === folder && cached.sessionFile === (sessionFile ?? cached.sessionFile)) {
+    if (
+      cached &&
+      cached.folder === folder &&
+      cached.requestedSessionFile === requestedSessionFile
+    ) {
       return cached;
     }
-    cached?.session?.dispose?.();
-    const sessionManager = sessionFile
-      ? pi.SessionManager.open(sessionFile)
+    await disposeEntry(cached);
+    pool.delete(key);
+    const sessionManager = requestedSessionFile
+      ? pi.SessionManager.open(requestedSessionFile)
       : pi.SessionManager.create(folder);
-    const options = { cwd: folder, sessionManager };
-    const loader = createResourceLoader(pi, folder);
-    if (loader) options.resourceLoader = loader;
-    const created = await pi.createAgentSession(options);
+    const resourceLoader = createResourceLoader(pi, folder);
+    await resourceLoader.reload();
+    const created = await pi.createAgentSession({
+      cwd: folder,
+      sessionManager,
+      resourceLoader,
+      tools: [...CODING_TOOLS],
+    });
+    if (!created?.session || typeof created.session.prompt !== "function") {
+      await created?.session?.dispose?.();
+      throw Object.assign(new Error("Pi 会话创建失败，飞书助手无法处理消息。"), {
+        code: "pi-session-unavailable",
+      });
+    }
     const entry = {
       folder,
-      sessionFile: created.session.sessionFile ?? sessionFile ?? null,
-      session: created.session
+      requestedSessionFile,
+      sessionFile: created.session.sessionFile ?? requestedSessionFile,
+      session: created.session,
     };
     pool.set(key, entry);
     return entry;
@@ -90,7 +142,7 @@ export function createPiRunPrompt(pi) {
   const runner = async ({ folder, sessionFile, text, signal, confirm, inbound }) => {
     const key = inbound?.key ?? folder;
     const entry = await sessionFor(key, folder, sessionFile);
-    const restore = interceptToolCalls(entry.session, confirm, inbound);
+    const restore = interceptToolCalls(entry.session, confirm, inbound, { folder, secrets });
     const onAbort = () => entry.session.abort?.();
     signal?.addEventListener("abort", onAbort, { once: true });
     try {
@@ -100,14 +152,21 @@ export function createPiRunPrompt(pi) {
       restore();
     }
     entry.sessionFile = entry.session.sessionFile ?? entry.sessionFile;
+    entry.requestedSessionFile = entry.sessionFile;
     return {
       text: assistantText(entry.session) || "完成。",
-      sessionFile: entry.sessionFile
+      sessionFile: entry.sessionFile,
     };
   };
-  runner.dispose = () => {
-    for (const entry of pool.values()) entry.session?.dispose?.();
+  runner.release = async (key) => {
+    const entry = pool.get(key);
+    pool.delete(key);
+    await disposeEntry(entry);
+  };
+  runner.dispose = async () => {
+    const entries = [...pool.values()];
     pool.clear();
+    await Promise.all(entries.map(disposeEntry));
   };
   return runner;
 }

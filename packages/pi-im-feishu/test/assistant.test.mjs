@@ -7,6 +7,7 @@ import { runAssistant } from "../src/assistant.mjs";
 import { createAssistantControl } from "../src/assistant-control.mjs";
 import { createAutostart } from "../src/autostart.mjs";
 import { attachWithOwnership } from "../src/ownership.mjs";
+import { createLock } from "../src/lock.mjs";
 import { createStore } from "../src/store.mjs";
 
 function fakeTransport({ ready = true } = {}) {
@@ -33,7 +34,13 @@ test("WS not ready must not become online", async () => {
   const store = createStore(home);
   await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
   await assert.rejects(
-    () => runAssistant({ home, store, transport: fakeTransport({ ready: false }), handleSignals: false }),
+    () => runAssistant({
+      home,
+      store,
+      transport: fakeTransport({ ready: false }),
+      runPrompt: async () => ({ text: "unused" }),
+      handleSignals: false,
+    }),
     (error) => error.code === "ws-not-ready"
   );
 });
@@ -43,7 +50,13 @@ test("ready transport is online and routes inbound", async () => {
   const store = createStore(home);
   await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
   const transport = fakeTransport();
-  const runtime = await runAssistant({ home, store, transport, handleSignals: false });
+  const runtime = await runAssistant({
+    home,
+    store,
+    transport,
+    runPrompt: async () => ({ text: "unused" }),
+    handleSignals: false,
+  });
   const result = await runtime.router.accept({
     sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
     message: {
@@ -75,7 +88,14 @@ test("start requires binding; stop disables autostart; shutdown does not stop as
     autostart,
     runner: async ({ store, lock }) => {
       const transport = fakeTransport();
-      return runAssistant({ home, store, lock, transport, handleSignals: false });
+      return runAssistant({
+        home,
+        store,
+        lock,
+        transport,
+        runPrompt: async () => ({ text: "unused" }),
+        handleSignals: false,
+      });
     }
   });
   await assert.rejects(() => control.start(), (error) => error.code === "not-configured");
@@ -86,6 +106,27 @@ test("start requires binding; stop disables autostart; shutdown does not stop as
   await control.stop();
   assert.equal(enabled, false);
   assert.equal((await control.snapshot()).presence, "offline");
+});
+
+test("SDK startup failure is visible and releases the process lock before transport start", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-sdk-"));
+  const store = createStore(home);
+  await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  const transport = fakeTransport();
+  await assert.rejects(
+    () => runAssistant({
+      home,
+      store,
+      transport,
+      loadSdk: async () => {
+        throw Object.assign(new Error("Pi SDK missing"), { code: "pi-sdk-missing" });
+      },
+      handleSignals: false,
+    }),
+    (error) => error.code === "pi-sdk-missing",
+  );
+  assert.equal(transport.started, false);
+  assert.equal(await createLock(home).read(), null);
 });
 
 test("attach pauses assistant writes when folders match", () => {

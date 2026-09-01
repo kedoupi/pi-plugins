@@ -270,7 +270,11 @@ test("snapshot reports unbound, starting, online, and offline with lastError", a
   let owner = null;
   const control = createAssistantControl(home, {
     store,
-    lock: { async read() { return owner; } },
+    lock: {
+      async read() {
+        return owner;
+      },
+    },
     autostart: createAutostart(),
   });
   assert.equal((await control.snapshot()).presence, "unbound");
@@ -331,12 +335,7 @@ test("rebind verifies, stops, writes, and starts in order", async () => {
     appSecret: "new-secret-value",
     domain: "feishu",
   });
-  assert.deepEqual(order, [
-    "verify-new",
-    "stop-old",
-    "write-new",
-    "start-new",
-  ]);
+  assert.deepEqual(order, ["verify-new", "stop-old", "write-new", "start-new"]);
   assert.equal(result.status, "online");
   assert.equal((await store.loadCredentials()).botOpenId, "ou_new");
   await control.stop();

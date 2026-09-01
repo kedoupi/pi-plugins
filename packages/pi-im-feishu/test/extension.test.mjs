@@ -263,12 +263,7 @@ test("masked input renders bullets and returns no secret on escape", async () =>
     ui: {
       custom(factory) {
         return new Promise((resolve) => {
-          const component = factory(
-            { requestRender() {} },
-            {},
-            {},
-            resolve,
-          );
+          const component = factory({ requestRender() {} }, {}, {}, resolve);
           component.handleInput("secret-value");
           rendered = component.render(80).join("\n");
           component.handleInput("\u007f");
@@ -407,9 +402,7 @@ test("folder commands preserve complete topic chat keys", async () => {
     hasUI: true,
     ui: { notify() {} },
   });
-  assert.deepEqual(calls, [
-    ["topic:oc_chat:om_thread", "/tmp/project folder"],
-  ]);
+  assert.deepEqual(calls, [["topic:oc_chat:om_thread", "/tmp/project folder"]]);
 });
 
 test("session_shutdown does not stop the assistant", async () => {

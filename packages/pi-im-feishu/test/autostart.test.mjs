@@ -41,7 +41,13 @@ test("launchctl fallback status is checked for enable and disable", async () => 
   });
   await assert.rejects(() => auto.enable(), /launchctl load failed.*denied/);
   await assert.rejects(() => auto.disable(), /launchctl unload failed.*denied/);
-  assert.deepEqual(calls, ["bootout", "bootstrap", "load", "bootout", "unload"]);
+  assert.deepEqual(calls, [
+    "bootout",
+    "bootstrap",
+    "load",
+    "bootout",
+    "unload",
+  ]);
 });
 
 test("unsupported autostart reports explicit enable and disable status", async () => {

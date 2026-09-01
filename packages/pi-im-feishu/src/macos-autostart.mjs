@@ -66,8 +66,7 @@ export function macosAutostart(
   if (platform !== "darwin") return createAutostart();
   const path = plistPath ?? launchAgentPath();
   const run =
-    launchctl ??
-    ((args) => spawnSync("launchctl", args, { encoding: "utf8" }));
+    launchctl ?? ((args) => spawnSync("launchctl", args, { encoding: "utf8" }));
   const domain = `gui/${process.getuid?.() ?? 501}`;
   return createAutostart({
     install: async () => {
@@ -85,8 +84,7 @@ export function macosAutostart(
       const unloaded = run(["bootout", domain, path]);
       if (unloaded?.status !== 0) {
         const fallback = run(["unload", "-w", path]);
-        if (fallback?.status !== 0)
-          throw launchctlError("unload", fallback);
+        if (fallback?.status !== 0) throw launchctlError("unload", fallback);
       }
       await remove(path, { force: true });
     },

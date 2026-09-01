@@ -46,9 +46,7 @@ export function createAssistantControl(
     }
     return store.setLastError({
       code:
-        typeof error?.code === "string" && error.code
-          ? error.code
-          : "unknown",
+        typeof error?.code === "string" && error.code ? error.code : "unknown",
       message,
     });
   }

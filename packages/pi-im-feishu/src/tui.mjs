@@ -65,7 +65,9 @@ function formatSnapshot(snapshot) {
     `飞书：${STATUS_TEXT[snapshot.presence] ?? snapshot.presence}`,
     `机器人：${bot}`,
     ...(snapshot.lastError
-      ? [`最近错误：${snapshot.lastError.message}（${snapshot.lastError.code}）`]
+      ? [
+          `最近错误：${snapshot.lastError.message}（${snapshot.lastError.code}）`,
+        ]
       : []),
     "清单：",
     chats,
@@ -75,7 +77,8 @@ function formatSnapshot(snapshot) {
 export default function createFeishuExtension(pi, { bind, assistant } = {}) {
   const homeBind = bind ?? createBind();
   const control =
-    assistant ?? createAssistantControl(homeBind.store.home, { bind: homeBind });
+    assistant ??
+    createAssistantControl(homeBind.store.home, { bind: homeBind });
   let heartbeatTimer;
   let windowLease;
 

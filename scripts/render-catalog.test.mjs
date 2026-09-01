@@ -44,6 +44,29 @@ test("renders stable catalog markdown", () => {
   assert(markdown.endsWith("\n"));
 });
 
+test("renders stable contents links for categories and repeated entries", () => {
+  const second = {
+    ...entries[0],
+    id: "alpha",
+    name: "Alpha",
+    source: "npm:alpha",
+    categories: ["coding", "workflow"]
+  };
+  const markdown = renderCatalog([entries[0], second]);
+
+  assert(markdown.includes([
+    "## Contents",
+    "",
+    "- [Coding](#coding)",
+    "  - [Alpha](#coding--alpha)",
+    "- [Workflow](#workflow)",
+    "  - [Alpha](#workflow--alpha)",
+    "  - [Tool A](#workflow--tool-a)"
+  ].join("\n")));
+  assert(markdown.includes('<a id="coding--alpha"></a>\n### [Alpha]'));
+  assert(markdown.includes('<a id="workflow--alpha"></a>\n### [Alpha]'));
+});
+
 test("sorts categories and entries", () => {
   const second = { ...entries[0], id: "alpha", name: "Alpha", source: "npm:alpha", categories: ["coding"] };
   const markdown = renderCatalog([entries[0], second]);

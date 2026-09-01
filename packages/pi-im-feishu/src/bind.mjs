@@ -5,6 +5,14 @@ export function domainFromTenantBrand(brand) {
   return brand === "lark" ? "lark" : "feishu";
 }
 
+function verifiedBotOpenId(verified) {
+  const openId = verified?.bot?.open_id;
+  if (typeof openId !== "string" || !openId.trim()) {
+    throw Object.assign(new Error("飞书机器人无法验证。"), { code: "verify-failed" });
+  }
+  return openId.trim();
+}
+
 /**
  * Manual bind: verify then write the same machine-level store QR uses.
  * `verifyApp` is injectable. The real Feishu HTTP check lands in Task 2.
@@ -14,14 +22,17 @@ export async function bindManual(store, { appId, appSecret, domain = "feishu" },
   if (errors.length) {
     throw Object.assign(new Error(errors.join("; ")), { code: "invalid-binding" });
   }
-  if (typeof verifyApp === "function") {
-    await verifyApp({ appId: appId.trim(), appSecret: appSecret.trim(), domain });
-  }
+  const verified = await verifyApp({
+    appId: appId.trim(),
+    appSecret: appSecret.trim(),
+    domain
+  });
   return store.bindBot({
     appId,
     appSecret,
     domain,
-    boundVia: "manual"
+    boundVia: "manual",
+    botOpenId: verifiedBotOpenId(verified)
   });
 }
 
@@ -29,7 +40,12 @@ export async function bindManual(store, { appId, appSecret, domain = "feishu" },
  * QR bind: `registerApp` is injectable and must match official SDK semantics
  * (onQRCodeReady, client_id/client_secret, tenant_brand). No live SDK in Task 1.
  */
-export async function bindQr(store, { registerApp = registerFeishuApp, onQRCodeReady, onStatusChange } = {}) {
+export async function bindQr(store, {
+  registerApp = registerFeishuApp,
+  verifyApp = verifyFeishuApp,
+  onQRCodeReady,
+  onStatusChange
+} = {}) {
   if (typeof registerApp !== "function") {
     throw Object.assign(new Error("当前不能扫码开通。请改用手动填写。"), { code: "qr-unavailable" });
   }
@@ -45,11 +61,17 @@ export async function bindQr(store, { registerApp = registerFeishuApp, onQRCodeR
   if (errors.length) {
     throw Object.assign(new Error(errors.join("; ")), { code: "invalid-binding" });
   }
+  const verified = await verifyApp({
+    appId: appId.trim(),
+    appSecret: appSecret.trim(),
+    domain
+  });
   return store.bindBot({
     appId,
     appSecret,
     domain,
-    boundVia: "qr"
+    boundVia: "qr",
+    botOpenId: verifiedBotOpenId(verified)
   });
 }
 

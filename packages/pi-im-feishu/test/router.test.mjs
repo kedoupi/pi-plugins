@@ -64,3 +64,71 @@ test("mentioned group messages are accepted", async () => {
   }));
   assert.equal(result.action, "received");
 });
+
+test("filtering precedes confirmation consumption", async () => {
+  let confirmations = 0;
+  const router = createRouter({
+    store: createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-order-"))),
+    botOpenId: "ou_bot",
+    onMessage: () => {
+      confirmations += 1;
+      return "confirmed";
+    }
+  });
+  const result = await router.accept(event({
+    chatType: "group",
+    chatId: "oc_g",
+    text: "确认",
+    mentions: [{ key: "@_other", id: { open_id: "ou_other" } }]
+  }));
+  assert.equal(result.action, "filtered");
+  assert.equal(confirmations, 0);
+});
+
+test("retries a delivery whose send failed", async () => {
+  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-retry-")));
+  await store.bindFolder("p2p:oc_dm", "/tmp/site");
+  let sendSucceeds = false;
+  let workCalls = 0;
+  const router = createRouter({
+    store,
+    work: async () => {
+      workCalls += 1;
+      return { text: "done" };
+    },
+    send: async () => {
+      if (!sendSucceeds) throw new Error("send failed");
+    }
+  });
+  const inboundEvent = event({ messageId: "om_retry" });
+  await assert.rejects(() => router.accept(inboundEvent), /send failed/);
+  sendSucceeds = true;
+  assert.equal((await router.accept(inboundEvent)).action, "work");
+  assert.equal(workCalls, 2);
+});
+
+test("concurrent duplicate accepts execute work once", async () => {
+  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-race-")));
+  await store.bindFolder("p2p:oc_dm", "/tmp/site");
+  let releaseWork;
+  let workCalls = 0;
+  const router = createRouter({
+    store,
+    send: async () => {},
+    work: async () => {
+      workCalls += 1;
+      await new Promise((resolve) => {
+        releaseWork = resolve;
+      });
+      return { text: "done" };
+    }
+  });
+  const inboundEvent = event({ messageId: "om_race" });
+  const first = router.accept(inboundEvent);
+  while (!releaseWork) await new Promise((resolve) => setImmediate(resolve));
+  const second = await router.accept(inboundEvent);
+  releaseWork();
+  assert.equal((await first).action, "work");
+  assert.equal(second.action, "duplicate");
+  assert.equal(workCalls, 1);
+});

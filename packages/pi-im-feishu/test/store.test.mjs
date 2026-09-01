@@ -93,3 +93,30 @@ test("updateChat replaces one chat under the shared mutation lock", async () => 
   assert.equal(updated.count, 2);
   assert.equal((await store.getChat("p2p:a")).count, 2);
 });
+
+test("delivery claims are persistent and exclusive", async () => {
+  const home = await temporaryHome("delivery-claim");
+  const a = createStore(home);
+  const b = createStore(home);
+  const claims = await Promise.all([
+    a.claimDelivery("p2p:a", "om_1"),
+    b.claimDelivery("p2p:a", "om_1")
+  ]);
+  assert.deepEqual(claims.sort(), [false, true]);
+  await a.releaseDelivery("p2p:a", "om_1");
+  assert.equal(await b.claimDelivery("p2p:a", "om_1"), true);
+  await b.completeDelivery("p2p:a", "om_1");
+  assert.equal(await a.claimDelivery("p2p:a", "om_1"), false);
+});
+
+test("completed delivery records are bounded", async () => {
+  const store = createStore(await temporaryHome("delivery-bound"), { deliveryLimit: 2 });
+  for (const messageId of ["om_1", "om_2", "om_3"]) {
+    assert.equal(await store.claimDelivery("p2p:a", messageId), true);
+    await store.completeDelivery("p2p:a", messageId);
+  }
+  const deliveries = (await store.getChat("p2p:a")).deliveries;
+  assert.equal(Object.keys(deliveries).length, 2);
+  assert.equal(deliveries.om_1, undefined);
+  assert.equal(deliveries.om_3.state, "complete");
+});

@@ -21,7 +21,10 @@ export async function verifyFeishuApp({ appId, appSecret, domain = "feishu", fet
   if (botBody?.code && botBody.code !== 0) {
     throw Object.assign(new Error("飞书机器人无法验证。"), { code: "verify-failed" });
   }
-  return { ok: true, bot: botBody.bot ?? null };
+  if (typeof botBody?.bot?.open_id !== "string" || !botBody.bot.open_id.trim()) {
+    throw Object.assign(new Error("飞书机器人无法验证。"), { code: "verify-failed" });
+  }
+  return { ok: true, bot: botBody.bot };
 }
 
 export async function registerFeishuApp(options = {}) {

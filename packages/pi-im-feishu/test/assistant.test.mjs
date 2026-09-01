@@ -55,6 +55,7 @@ test("ready transport is online and routes inbound", async () => {
   await store.bindBot({
     appId: "cli_abcdefghijklmn",
     appSecret: "super-secret-value",
+    botOpenId: "ou_bot",
   });
   const transport = fakeTransport();
   const runtime = await runAssistant({
@@ -76,6 +77,18 @@ test("ready transport is online and routes inbound", async () => {
   });
   assert.equal(result.action, "need-folder");
   assert.equal(transport.sent.length, 1);
+  const wrongMention = await runtime.router.accept({
+    sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
+    message: {
+      message_id: "om_group",
+      chat_id: "oc_group",
+      chat_type: "group",
+      message_type: "text",
+      mentions: [{ key: "@_other", id: { open_id: "ou_other" } }],
+      content: JSON.stringify({ text: "@_other 在吗" }),
+    },
+  });
+  assert.equal(wrongMention.action, "filtered");
   await runtime.shutdown();
   assert.equal(transport.stopped, true);
 });

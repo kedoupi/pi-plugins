@@ -22,3 +22,18 @@ test("verifyFeishuApp uses injected fetch and fails without token", async () => 
   });
   assert.equal(ok.bot.open_id, "ou_bot");
 });
+
+test("verifyFeishuApp rejects a response without bot identity", async () => {
+  await assert.rejects(
+    () => verifyFeishuApp({
+      appId: "cli_abcdefghijklmn",
+      appSecret: "super-secret-value",
+      fetchImpl: async (url) => ({
+        json: async () => url.includes("tenant_access_token")
+          ? { tenant_access_token: "t" }
+          : { code: 0, bot: {} }
+      })
+    }),
+    (error) => error.code === "verify-failed"
+  );
+});

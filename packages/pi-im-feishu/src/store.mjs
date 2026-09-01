@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 import { atomicWriteJson } from "./atomic-json.mjs";
 import { withFileLock } from "./file-lock.mjs";
+import { pidIsAlive } from "./lock.mjs";
 import {
   configPath,
   defaultHome,
@@ -11,6 +12,9 @@ import {
 } from "./paths.mjs";
 
 export const DOMAINS = new Set(["feishu", "lark"]);
+
+const DELIVERY_LIMIT = 1_000;
+const DELIVERY_CLAIM_TTL_MS = 5 * 60_000;
 
 const emptyConfig = () => ({
   version: 1,
@@ -114,6 +118,7 @@ export function createStore(home = defaultHome(), hooks = {}) {
   const configFile = configPath(home);
   const secretFile = secretsPath(home);
   const mutationLock = storeLockPath(home);
+  const deliveryLimit = hooks.deliveryLimit ?? DELIVERY_LIMIT;
 
   async function loadConfig() {
     const raw = await readJson(configFile, emptyConfig());
@@ -273,6 +278,70 @@ export function createStore(home = defaultHome(), hooks = {}) {
         ...patch,
         updatedAt: new Date().toISOString(),
       }));
+    },
+
+    async claimDelivery(key, messageId) {
+      if (!nonEmpty(messageId)) {
+        throw Object.assign(new Error("delivery needs a message id"), {
+          code: "invalid-delivery",
+        });
+      }
+      let claimed = false;
+      const now = Date.now();
+      await this.updateChat(key, (current) => {
+        const deliveries = { ...(current?.deliveries ?? {}) };
+        const existing = deliveries[messageId];
+        const updatedAt = Date.parse(existing?.updatedAt);
+        const activeClaim = Number.isInteger(existing?.ownerPid)
+          ? pidIsAlive(existing.ownerPid)
+          : Number.isFinite(updatedAt) && now - updatedAt <= DELIVERY_CLAIM_TTL_MS;
+        if (existing?.state === "complete" || (existing?.state === "in-progress" && activeClaim)) {
+          return { ...(current ?? {}), deliveries };
+        }
+        deliveries[messageId] = {
+          state: "in-progress",
+          ownerPid: process.pid,
+          updatedAt: new Date(now).toISOString(),
+        };
+        claimed = true;
+        return { ...(current ?? {}), deliveries };
+      });
+      return claimed;
+    },
+
+    async completeDelivery(key, messageId) {
+      let completed = false;
+      await this.updateChat(key, (current) => {
+        const deliveries = { ...(current?.deliveries ?? {}) };
+        if (deliveries[messageId]?.state !== "in-progress") {
+          return { ...(current ?? {}), deliveries };
+        }
+        deliveries[messageId] = {
+          state: "complete",
+          updatedAt: new Date().toISOString(),
+        };
+        const completedIds = Object.entries(deliveries)
+          .filter(([, delivery]) => delivery?.state === "complete")
+          .sort(([, a], [, b]) => String(a.updatedAt).localeCompare(String(b.updatedAt)))
+          .map(([id]) => id);
+        for (const id of completedIds.slice(0, -deliveryLimit)) delete deliveries[id];
+        completed = true;
+        return { ...(current ?? {}), deliveries };
+      });
+      return completed;
+    },
+
+    async releaseDelivery(key, messageId) {
+      let released = false;
+      await this.updateChat(key, (current) => {
+        const deliveries = { ...(current?.deliveries ?? {}) };
+        if (deliveries[messageId]?.state === "in-progress") {
+          delete deliveries[messageId];
+          released = true;
+        }
+        return { ...(current ?? {}), deliveries };
+      });
+      return released;
     },
 
     async bindFolder(key, folder) {

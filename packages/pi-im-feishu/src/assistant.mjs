@@ -83,8 +83,9 @@ export async function runAssistant({
     });
     const router = createRouter({
       store,
+      botOpenId: credentials.botOpenId,
       send: (payload) => activeTransport?.send?.(payload),
-      onMessage: (inbound) => confirmWait.take(inbound.key, inbound.text),
+      onMessage: (inbound) => confirmWait.take(inbound),
       work: async (payload) => {
         if (!ownership.canAssistantWrite(payload.inbound.key)) {
           return {
@@ -128,6 +129,10 @@ export async function runAssistant({
           lark,
           credentials,
           onMessage: (event) => router.accept(event),
+          onDisconnect: (error) => {
+            if (error) logger.error?.("[pi-im-feishu] transport disconnected", error);
+            return lock.heartbeat("offline");
+          },
           logger,
         });
       }
@@ -149,7 +154,8 @@ export async function runAssistant({
 
     await lock.heartbeat("online");
     timer = setInterval(() => {
-      lock.heartbeat("online").catch(async (error) => {
+      const status = activeTransport?.isReady?.() === false ? "offline" : "online";
+      lock.heartbeat(status).catch(async (error) => {
         logger.error?.(error);
         await shutdown();
         if (handleSignals) process.exit(1);

@@ -14,6 +14,7 @@ export function createFeishuTransport({
   lark,
   credentials,
   onMessage,
+  onDisconnect,
   logger = console,
   readyTimeoutMs = 15_000
 }) {
@@ -34,38 +35,62 @@ export function createFeishuTransport({
   let wsClient;
   let ready = false;
 
-  async function sendText(chatId, text) {
-    if (!chatId || typeof text !== "string" || text.trim() === "") return;
+  function disconnected(error) {
+    ready = false;
+    try {
+      Promise.resolve(onDisconnect?.(error)).catch((failure) => logger.error?.(failure));
+    } catch (failure) {
+      logger.error?.(failure);
+    }
+  }
+
+  async function sendMessage(inbound, chatId, data) {
+    if (inbound?.kind === "topic" && inbound.messageId) {
+      await client.im.v1.message.reply({
+        path: { message_id: inbound.messageId },
+        data: { ...data, reply_in_thread: true }
+      });
+      return;
+    }
+    if (!chatId) return;
     await client.im.v1.message.create({
       params: { receive_id_type: "chat_id" },
-      data: {
-        receive_id: chatId,
-        msg_type: "text",
-        content: JSON.stringify({ text })
-      }
+      data: { receive_id: chatId, ...data }
     });
   }
 
-  async function sendFile(chatId, file) {
-    const path = file.path ?? file;
-    const type = file.kind === "image" ? "image" : "file";
-    const buffer = await readFile(path);
-    const uploaded = await client.im.v1.file.create({
-      data: {
-        file_type: type === "image" ? "image" : "stream",
-        file_name: basename(path),
-        file: buffer
-      }
+  async function sendText(inbound, chatId, text) {
+    if (typeof text !== "string" || text.trim() === "") return;
+    await sendMessage(inbound, chatId, {
+      msg_type: "text",
+      content: JSON.stringify({ text })
     });
-    const key = uploaded?.data?.file_key ?? uploaded?.file_key;
-    if (!key) throw new Error("Feishu file upload returned no key");
-    await client.im.v1.message.create({
-      params: { receive_id_type: "chat_id" },
-      data: {
-        receive_id: chatId,
-        msg_type: type,
-        content: JSON.stringify(type === "image" ? { image_key: key } : { file_key: key })
-      }
+  }
+
+  async function sendFile(inbound, chatId, file) {
+    const path = file.path ?? file;
+    const image = file.kind === "image";
+    const buffer = await readFile(path);
+    let key;
+    if (image) {
+      const uploaded = await client.im.v1.image.create({
+        data: { image_type: "message", image: buffer }
+      });
+      key = uploaded?.data?.image_key ?? uploaded?.image_key;
+    } else {
+      const uploaded = await client.im.v1.file.create({
+        data: {
+          file_type: "stream",
+          file_name: basename(path),
+          file: buffer
+        }
+      });
+      key = uploaded?.data?.file_key ?? uploaded?.file_key;
+    }
+    if (!key) throw new Error(`Feishu ${image ? "image" : "file"} upload returned no key`);
+    await sendMessage(inbound, chatId, {
+      msg_type: image ? "image" : "file",
+      content: JSON.stringify(image ? { image_key: key } : { file_key: key })
     });
   }
 
@@ -123,8 +148,14 @@ export function createFeishuTransport({
           settleReady?.();
         },
         onError: (error) => {
-          ready = false;
-          settleError?.(error ?? new Error("飞书长连接失败"));
+          const failure = error ?? new Error("飞书长连接失败");
+          disconnected(failure);
+          settleError?.(failure);
+        },
+        onClose: () => disconnected(),
+        onReconnecting: () => disconnected(),
+        onReconnected: () => {
+          ready = true;
         }
       });
       await wsClient.start({ eventDispatcher: dispatcher });
@@ -135,11 +166,11 @@ export function createFeishuTransport({
       await wsClient?.stop?.();
       wsClient = undefined;
     },
-    async send({ chatId, text, files } = {}) {
-      if (text) await sendText(chatId, text);
+    async send({ inbound, chatId = inbound?.chatId, text, files } = {}) {
+      if (text) await sendText(inbound, chatId, text);
       if (files?.length) {
         await sendOutboundFiles(files, {
-          sendFile: (file) => sendFile(chatId, file)
+          sendFile: (file) => sendFile(inbound, chatId, file)
         });
       }
     },

@@ -46,9 +46,8 @@ export function isBotSender(event, botOpenId) {
 }
 
 export function isMentioned(event, botOpenId) {
-  const ids = mentionOpenIds(payload(event).message?.mentions ?? []);
-  if (botOpenId) return ids.includes(botOpenId);
-  return ids.length > 0;
+  if (!nonEmpty(botOpenId)) return false;
+  return mentionOpenIds(payload(event).message?.mentions ?? []).includes(botOpenId.trim());
 }
 
 export function parseInbound(event, { botOpenId } = {}) {
@@ -59,7 +58,10 @@ export function parseInbound(event, { botOpenId } = {}) {
   const messageId = nonEmpty(message.message_id);
   const chatId = nonEmpty(message.chat_id);
   if (!messageId || !chatId) return null;
-  const threadId = nonEmpty(message.thread_id) ?? nonEmpty(message.root_id);
+  const rootId = nonEmpty(message.root_id);
+  const threadId = nonEmpty(message.thread_id) ?? rootId;
+  const senderOpenId = nonEmpty(body.sender?.sender_id?.open_id);
+  const senderType = nonEmpty(body.sender?.sender_type);
   let kind;
   if (message.chat_type === "p2p") kind = "p2p";
   else if (threadId) kind = "topic";
@@ -75,7 +77,10 @@ export function parseInbound(event, { botOpenId } = {}) {
     kind,
     chatId,
     threadId: kind === "topic" ? threadId : null,
+    rootId,
     messageId,
+    senderOpenId,
+    senderType,
     text,
     mentioned: message.chat_type === "p2p" ? true : isMentioned(event, botOpenId),
     files: inboundFiles(event).map((file) => ({ ...file, messageId }))

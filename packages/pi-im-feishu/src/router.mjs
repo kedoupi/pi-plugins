@@ -17,40 +17,52 @@ export function shouldAccept(inbound) {
 }
 
 export function createRouter({ store, send, botOpenId, work, onMessage } = {}) {
-  const seen = new Set();
   return {
     async accept(event) {
       const inbound = parseInbound(event, { botOpenId });
-      if (inbound && onMessage?.(inbound)) return { action: "confirm" };
       if (!inbound) return { action: "ignored" };
-      if (seen.has(inbound.messageId)) return { action: "duplicate" };
       if (!shouldAccept(inbound)) return { action: "filtered" };
-      seen.add(inbound.messageId);
-      await store.upsertChat(inbound.key, {
-        title: titleForChat(inbound.key),
-        lastMessageId: inbound.messageId,
-        lastInbound: inbound.text || null
-      });
-      const chat = await store.getChat(inbound.key);
-      if (!chat?.folder) {
-        await send?.({ chatId: inbound.chatId, text: folderHint(inbound), inbound });
-        return { action: "need-folder", inbound };
+      const confirmation = onMessage?.(inbound);
+      if (confirmation !== undefined && confirmation !== null) {
+        return { action: "confirm", decision: confirmation };
       }
-      if (typeof work === "function") {
-        const result = await work({ inbound, chat });
-        const text = result?.text;
-        if (text) await send?.({ chatId: inbound.chatId, text, inbound });
-        if (result?.sessionFile) {
-          await store.upsertChat(inbound.key, { sessionFile: result.sessionFile });
-        }
-        if (result?.patch) await store.upsertChat(inbound.key, result.patch);
-        if (result?.files?.length) {
-          await send?.({ chatId: inbound.chatId, files: result.files, inbound });
-        }
-        return { action: "work", inbound, result };
+      if (!(await store.claimDelivery(inbound.key, inbound.messageId))) {
+        return { action: "duplicate" };
       }
-      await send?.({ chatId: inbound.chatId, text: RECEIVED_HINT, inbound });
-      return { action: "received", inbound };
+
+      try {
+        await store.upsertChat(inbound.key, {
+          title: titleForChat(inbound.key),
+          lastMessageId: inbound.messageId,
+          lastInbound: inbound.text || null
+        });
+        const chat = await store.getChat(inbound.key);
+        let response;
+        if (!chat?.folder) {
+          await send?.({ chatId: inbound.chatId, text: folderHint(inbound), inbound });
+          response = { action: "need-folder", inbound };
+        } else if (typeof work === "function") {
+          const result = await work({ inbound, chat });
+          const text = result?.text;
+          if (text) await send?.({ chatId: inbound.chatId, text, inbound });
+          if (result?.sessionFile) {
+            await store.upsertChat(inbound.key, { sessionFile: result.sessionFile });
+          }
+          if (result?.patch) await store.upsertChat(inbound.key, result.patch);
+          if (result?.files?.length) {
+            await send?.({ chatId: inbound.chatId, files: result.files, inbound });
+          }
+          response = { action: "work", inbound, result };
+        } else {
+          await send?.({ chatId: inbound.chatId, text: RECEIVED_HINT, inbound });
+          response = { action: "received", inbound };
+        }
+        await store.completeDelivery(inbound.key, inbound.messageId);
+        return response;
+      } catch (error) {
+        await store.releaseDelivery(inbound.key, inbound.messageId);
+        throw error;
+      }
     }
   };
 }

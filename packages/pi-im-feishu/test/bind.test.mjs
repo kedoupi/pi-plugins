@@ -6,10 +6,15 @@ import test from "node:test";
 import { bindManual, bindQr, createBind } from "../src/bind.mjs";
 import { createStore } from "../src/store.mjs";
 
-test("QR and manual bind write the same machine-level store", async () => {
+test("QR and manual bind verify and store the same bot identity", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-bind-"));
   const store = createStore(home);
   const codes = [];
+  const verified = [];
+  const verifyApp = async (credentials) => {
+    verified.push(credentials);
+    return { ok: true, bot: { open_id: "ou_bot" } };
+  };
   await bindQr(store, {
     registerApp: async ({ onQRCodeReady }) => {
       onQRCodeReady?.({ url: "https://example.test/qr", expireIn: 60 });
@@ -19,24 +24,25 @@ test("QR and manual bind write the same machine-level store", async () => {
         client_secret: "super-secret-value",
         user_info: { tenant_brand: "feishu" }
       };
-    }
+    },
+    verifyApp
   });
-  let status = await store.status();
+  let credentials = await store.loadCredentials();
   assert.equal(codes[0], "shown");
-  assert.equal(status.bot.boundVia, "qr");
-  assert.equal(status.bot.domain, "feishu");
+  assert.equal(credentials.boundVia, "qr");
+  assert.equal(credentials.domain, "feishu");
+  assert.equal(credentials.botOpenId, "ou_bot");
 
   await bindManual(store, {
     appId: "cli_abcdefghijklmn",
     appSecret: "super-secret-value",
     domain: "lark"
-  }, {
-    verifyApp: async () => ({ ok: true })
-  });
-  status = await store.status();
-  assert.equal(status.bot.boundVia, "manual");
-  assert.equal(status.bot.domain, "lark");
-  assert.equal(status.configured, true);
+  }, { verifyApp });
+  credentials = await store.loadCredentials();
+  assert.equal(credentials.boundVia, "manual");
+  assert.equal(credentials.domain, "lark");
+  assert.equal(credentials.botOpenId, "ou_bot");
+  assert.equal(verified.length, 2);
 });
 
 test("QR failure can fall through to manual bind", async () => {
@@ -53,7 +59,7 @@ test("QR failure can fall through to manual bind", async () => {
     appId: "cli_abcdefghijklmn",
     appSecret: "super-secret-value"
   }, {
-    verifyApp: async () => ({ ok: true })
+    verifyApp: async () => ({ ok: true, bot: { open_id: "ou_bot" } })
   });
   const status = await bind.store.status();
   assert.equal(status.bot.boundVia, "manual");
@@ -66,7 +72,8 @@ test("Lark tenant brand maps to lark domain", async () => {
       client_id: "cli_abcdefghijklmn",
       client_secret: "super-secret-value",
       user_info: { tenant_brand: "lark" }
-    })
+    }),
+    verifyApp: async () => ({ ok: true, bot: { open_id: "ou_bot" } })
   });
   assert.equal((await store.status()).bot.domain, "lark");
 });

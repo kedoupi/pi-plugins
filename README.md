@@ -56,6 +56,7 @@ npm run pack:check
 
 Read the project guides before adding a Package:
 
+- [Project charter](./docs/project-charter.md)
 - [Package standard](./docs/package-standard.md)
 - [Development workflow](./docs/development.md)
 - [Testing](./docs/testing.md)

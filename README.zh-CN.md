@@ -56,6 +56,7 @@ npm run pack:check
 
 添加 Package 前请阅读：
 
+- [项目总纲](./docs/project-charter.zh-CN.md)
 - [Package 规范](./docs/package-standard.md)
 - [开发流程](./docs/development.md)
 - [测试](./docs/testing.md)

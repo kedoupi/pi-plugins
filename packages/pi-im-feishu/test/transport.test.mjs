@@ -19,22 +19,22 @@ function fakeLark({ emitReady = true, emitError = false } = {}) {
           v1: {
             message: {
               create: async (payload) => createCalls.push(payload),
-              reply: async (payload) => replyCalls.push(payload)
+              reply: async (payload) => replyCalls.push(payload),
             },
             file: {
               create: async (payload) => {
                 fileUploads.push(payload);
                 return { data: { file_key: "fk" } };
-              }
+              },
             },
             image: {
               create: async (payload) => {
                 imageUploads.push(payload);
                 return { data: { image_key: "ik" } };
-              }
+              },
             },
-            messageResource: { get: async () => Buffer.from("bin") }
-          }
+            messageResource: { get: async () => Buffer.from("bin") },
+          },
         };
       }
     },
@@ -50,27 +50,28 @@ function fakeLark({ emitReady = true, emitError = false } = {}) {
       }
       async start() {
         if (emitReady) queueMicrotask(() => this.options.onReady?.());
-        if (emitError) queueMicrotask(() => this.options.onError?.(new Error("boom")));
+        if (emitError)
+          queueMicrotask(() => this.options.onError?.(new Error("boom")));
       }
       async stop() {}
     },
     createCalls,
     replyCalls,
     fileUploads,
-    imageUploads
+    imageUploads,
   };
   return lark;
 }
 
 const credentials = {
   appId: "cli_abcdefghijklmn",
-  appSecret: "super-secret-value"
+  appSecret: "super-secret-value",
 };
 
 const topicInbound = {
   kind: "topic",
   chatId: "oc_topic",
-  messageId: "om_topic"
+  messageId: "om_topic",
 };
 
 test("start waits for onReady and does not mark ready after start() alone", async () => {
@@ -78,7 +79,7 @@ test("start waits for onReady and does not mark ready after start() alone", asyn
   const transport = createFeishuTransport({
     lark,
     credentials,
-    onMessage: async () => {}
+    onMessage: async () => {},
   });
   await transport.start();
   assert.equal(transport.isReady(), true);
@@ -89,9 +90,12 @@ test("start fails when onReady never fires", async () => {
   const transport = createFeishuTransport({
     lark,
     credentials,
-    readyTimeoutMs: 20
+    readyTimeoutMs: 20,
   });
-  await assert.rejects(() => transport.start(), (error) => error.code === "ws-not-ready");
+  await assert.rejects(
+    () => transport.start(),
+    (error) => error.code === "ws-not-ready",
+  );
 });
 
 test("replies inside a topic", async () => {
@@ -103,8 +107,8 @@ test("replies inside a topic", async () => {
     data: {
       msg_type: "text",
       content: JSON.stringify({ text: "done" }),
-      reply_in_thread: true
-    }
+      reply_in_thread: true,
+    },
   });
   assert.equal(lark.createCalls.length, 0);
 });
@@ -115,7 +119,10 @@ test("uploads images through image.create and replies inside a topic", async () 
   await writeFile(path, Buffer.from("png"));
   const lark = fakeLark();
   const transport = createFeishuTransport({ lark, credentials });
-  await transport.send({ inbound: topicInbound, files: [{ kind: "image", path }] });
+  await transport.send({
+    inbound: topicInbound,
+    files: [{ kind: "image", path }],
+  });
   assert.equal(lark.imageUploads.length, 1);
   assert.equal(lark.fileUploads.length, 0);
   assert.deepEqual(lark.replyCalls[0], {
@@ -123,8 +130,8 @@ test("uploads images through image.create and replies inside a topic", async () 
     data: {
       msg_type: "image",
       content: JSON.stringify({ image_key: "ik" }),
-      reply_in_thread: true
-    }
+      reply_in_thread: true,
+    },
   });
 });
 
@@ -134,7 +141,7 @@ test("disconnect callbacks clear readiness and notify the owner", async () => {
   const transport = createFeishuTransport({
     lark,
     credentials,
-    onDisconnect: (error) => disconnected.push(error?.message ?? "closed")
+    onDisconnect: (error) => disconnected.push(error?.message ?? "closed"),
   });
   await transport.start();
   lark.wsOptions.onReconnecting?.();

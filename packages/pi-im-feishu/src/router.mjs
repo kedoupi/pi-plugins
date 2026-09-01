@@ -1,13 +1,16 @@
 import { parseInbound } from "./inbound.mjs";
 import { titleForChat } from "./store.mjs";
 
-const FOLDER_HINT = "先给这条聊天选一个文件夹。在电脑 Pi 里执行：/feishu folder {kind} {chatId} /绝对路径";
-const RECEIVED_HINT = "已收到，这条聊天会记在电脑的在线清单里。改代码要等绑定文件夹之后。";
+const FOLDER_HINT =
+  "先给这条聊天选一个文件夹。在电脑 Pi 里执行：/feishu folder {kind} {chatId} /绝对路径";
+const RECEIVED_HINT =
+  "已收到，这条聊天会记在电脑的在线清单里。改代码要等绑定文件夹之后。";
 
 export function folderHint(inbound) {
-  return FOLDER_HINT
-    .replace("{kind}", inbound.kind === "topic" ? "group" : inbound.kind)
-    .replace("{chatId}", inbound.chatId);
+  return FOLDER_HINT.replace(
+    "{kind}",
+    inbound.kind === "topic" ? "group" : inbound.kind,
+  ).replace("{chatId}", inbound.chatId);
 }
 
 export function shouldAccept(inbound) {
@@ -34,27 +37,41 @@ export function createRouter({ store, send, botOpenId, work, onMessage } = {}) {
         await store.upsertChat(inbound.key, {
           title: titleForChat(inbound.key),
           lastMessageId: inbound.messageId,
-          lastInbound: inbound.text || null
+          lastInbound: inbound.text || null,
         });
         const chat = await store.getChat(inbound.key);
         let response;
         if (!chat?.folder) {
-          await send?.({ chatId: inbound.chatId, text: folderHint(inbound), inbound });
+          await send?.({
+            chatId: inbound.chatId,
+            text: folderHint(inbound),
+            inbound,
+          });
           response = { action: "need-folder", inbound };
         } else if (typeof work === "function") {
           const result = await work({ inbound, chat });
           const text = result?.text;
           if (text) await send?.({ chatId: inbound.chatId, text, inbound });
           if (result?.sessionFile) {
-            await store.upsertChat(inbound.key, { sessionFile: result.sessionFile });
+            await store.upsertChat(inbound.key, {
+              sessionFile: result.sessionFile,
+            });
           }
           if (result?.patch) await store.upsertChat(inbound.key, result.patch);
           if (result?.files?.length) {
-            await send?.({ chatId: inbound.chatId, files: result.files, inbound });
+            await send?.({
+              chatId: inbound.chatId,
+              files: result.files,
+              inbound,
+            });
           }
           response = { action: "work", inbound, result };
         } else {
-          await send?.({ chatId: inbound.chatId, text: RECEIVED_HINT, inbound });
+          await send?.({
+            chatId: inbound.chatId,
+            text: RECEIVED_HINT,
+            inbound,
+          });
           response = { action: "received", inbound };
         }
         await store.completeDelivery(inbound.key, inbound.messageId);
@@ -63,6 +80,6 @@ export function createRouter({ store, send, botOpenId, work, onMessage } = {}) {
         await store.releaseDelivery(inbound.key, inbound.messageId);
         throw error;
       }
-    }
+    },
   };
 }

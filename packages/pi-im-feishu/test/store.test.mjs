@@ -100,7 +100,7 @@ test("delivery claims are persistent and exclusive", async () => {
   const b = createStore(home);
   const claims = await Promise.all([
     a.claimDelivery("p2p:a", "om_1"),
-    b.claimDelivery("p2p:a", "om_1")
+    b.claimDelivery("p2p:a", "om_1"),
   ]);
   assert.deepEqual(claims.sort(), [false, true]);
   await a.releaseDelivery("p2p:a", "om_1");
@@ -110,7 +110,9 @@ test("delivery claims are persistent and exclusive", async () => {
 });
 
 test("completed delivery records are bounded", async () => {
-  const store = createStore(await temporaryHome("delivery-bound"), { deliveryLimit: 2 });
+  const store = createStore(await temporaryHome("delivery-bound"), {
+    deliveryLimit: 2,
+  });
   for (const messageId of ["om_1", "om_2", "om_3"]) {
     assert.equal(await store.claimDelivery("p2p:a", messageId), true);
     await store.completeDelivery("p2p:a", messageId);

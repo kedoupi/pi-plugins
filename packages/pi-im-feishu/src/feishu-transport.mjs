@@ -16,20 +16,25 @@ export function createFeishuTransport({
   onMessage,
   onDisconnect,
   logger = console,
-  readyTimeoutMs = 15_000
+  readyTimeoutMs = 15_000,
 }) {
   if (!lark) {
-    throw Object.assign(new Error("飞书 SDK 未安装，无法上线。"), { code: "sdk-missing" });
+    throw Object.assign(new Error("飞书 SDK 未安装，无法上线。"), {
+      code: "sdk-missing",
+    });
   }
   if (!credentials?.appId || !credentials?.appSecret) {
-    throw Object.assign(new Error("缺少飞书凭据。"), { code: "not-configured" });
+    throw Object.assign(new Error("缺少飞书凭据。"), {
+      code: "not-configured",
+    });
   }
 
-  const domain = credentials.domain === "lark" ? lark.Domain.Lark : lark.Domain.Feishu;
+  const domain =
+    credentials.domain === "lark" ? lark.Domain.Lark : lark.Domain.Feishu;
   const client = new lark.Client({
     appId: credentials.appId,
     appSecret: credentials.appSecret,
-    domain
+    domain,
   });
 
   let wsClient;
@@ -38,7 +43,9 @@ export function createFeishuTransport({
   function disconnected(error) {
     ready = false;
     try {
-      Promise.resolve(onDisconnect?.(error)).catch((failure) => logger.error?.(failure));
+      Promise.resolve(onDisconnect?.(error)).catch((failure) =>
+        logger.error?.(failure),
+      );
     } catch (failure) {
       logger.error?.(failure);
     }
@@ -48,14 +55,14 @@ export function createFeishuTransport({
     if (inbound?.kind === "topic" && inbound.messageId) {
       await client.im.v1.message.reply({
         path: { message_id: inbound.messageId },
-        data: { ...data, reply_in_thread: true }
+        data: { ...data, reply_in_thread: true },
       });
       return;
     }
     if (!chatId) return;
     await client.im.v1.message.create({
       params: { receive_id_type: "chat_id" },
-      data: { receive_id: chatId, ...data }
+      data: { receive_id: chatId, ...data },
     });
   }
 
@@ -63,7 +70,7 @@ export function createFeishuTransport({
     if (typeof text !== "string" || text.trim() === "") return;
     await sendMessage(inbound, chatId, {
       msg_type: "text",
-      content: JSON.stringify({ text })
+      content: JSON.stringify({ text }),
     });
   }
 
@@ -74,7 +81,7 @@ export function createFeishuTransport({
     let key;
     if (image) {
       const uploaded = await client.im.v1.image.create({
-        data: { image_type: "message", image: buffer }
+        data: { image_type: "message", image: buffer },
       });
       key = uploaded?.data?.image_key ?? uploaded?.image_key;
     } else {
@@ -82,15 +89,18 @@ export function createFeishuTransport({
         data: {
           file_type: "stream",
           file_name: basename(path),
-          file: buffer
-        }
+          file: buffer,
+        },
       });
       key = uploaded?.data?.file_key ?? uploaded?.file_key;
     }
-    if (!key) throw new Error(`Feishu ${image ? "image" : "file"} upload returned no key`);
+    if (!key)
+      throw new Error(
+        `Feishu ${image ? "image" : "file"} upload returned no key`,
+      );
     await sendMessage(inbound, chatId, {
       msg_type: image ? "image" : "file",
-      content: JSON.stringify(image ? { image_key: key } : { file_key: key })
+      content: JSON.stringify(image ? { image_key: key } : { file_key: key }),
     });
   }
 
@@ -98,11 +108,14 @@ export function createFeishuTransport({
     const type = file.kind === "image" ? "image" : "file";
     const response = await client.im.v1.messageResource.get({
       path: { message_id: file.messageId, file_key: file.key },
-      params: { type }
+      params: { type },
     });
-    if (Buffer.isBuffer(response) || response instanceof Uint8Array) return response;
+    if (Buffer.isBuffer(response) || response instanceof Uint8Array)
+      return response;
     if (response?.data) return response.data;
-    throw Object.assign(new Error("飞书文件下载失败。"), { code: "download-failed" });
+    throw Object.assign(new Error("飞书文件下载失败。"), {
+      code: "download-failed",
+    });
   }
 
   return {
@@ -121,13 +134,17 @@ export function createFeishuTransport({
           }
           return {};
         },
-        "card.action.trigger": async () => ({})
+        "card.action.trigger": async () => ({}),
       });
       let settleReady;
       let settleError;
       const handshake = new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-          reject(Object.assign(new Error("飞书长连接超时。"), { code: "ws-not-ready" }));
+          reject(
+            Object.assign(new Error("飞书长连接超时。"), {
+              code: "ws-not-ready",
+            }),
+          );
         }, readyTimeoutMs);
         settleReady = () => {
           clearTimeout(timer);
@@ -156,7 +173,7 @@ export function createFeishuTransport({
         onReconnecting: () => disconnected(),
         onReconnected: () => {
           ready = true;
-        }
+        },
       });
       await wsClient.start({ eventDispatcher: dispatcher });
       await handshake;
@@ -170,10 +187,10 @@ export function createFeishuTransport({
       if (text) await sendText(inbound, chatId, text);
       if (files?.length) {
         await sendOutboundFiles(files, {
-          sendFile: (file) => sendFile(inbound, chatId, file)
+          sendFile: (file) => sendFile(inbound, chatId, file),
         });
       }
     },
-    download
+    download,
   };
 }

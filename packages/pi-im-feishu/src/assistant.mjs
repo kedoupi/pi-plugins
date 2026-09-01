@@ -130,7 +130,8 @@ export async function runAssistant({
           credentials,
           onMessage: (event) => router.accept(event),
           onDisconnect: (error) => {
-            if (error) logger.error?.("[pi-im-feishu] transport disconnected", error);
+            if (error)
+              logger.error?.("[pi-im-feishu] transport disconnected", error);
             return lock.heartbeat("offline");
           },
           logger,
@@ -154,7 +155,8 @@ export async function runAssistant({
 
     await lock.heartbeat("online");
     timer = setInterval(() => {
-      const status = activeTransport?.isReady?.() === false ? "offline" : "online";
+      const status =
+        activeTransport?.isReady?.() === false ? "offline" : "online";
       lock.heartbeat(status).catch(async (error) => {
         logger.error?.(error);
         await shutdown();

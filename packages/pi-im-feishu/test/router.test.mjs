@@ -6,7 +6,13 @@ import test from "node:test";
 import { createRouter } from "../src/router.mjs";
 import { createStore } from "../src/store.mjs";
 
-function event({ chatType = "p2p", chatId = "oc_dm", text = "hi", mentions, messageId = "om_1" }) {
+function event({
+  chatType = "p2p",
+  chatId = "oc_dm",
+  text = "hi",
+  mentions,
+  messageId = "om_1",
+}) {
   return {
     sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
     message: {
@@ -15,8 +21,8 @@ function event({ chatType = "p2p", chatId = "oc_dm", text = "hi", mentions, mess
       chat_type: chatType,
       message_type: "text",
       mentions,
-      content: JSON.stringify({ text })
-    }
+      content: JSON.stringify({ text }),
+    },
   };
 }
 
@@ -24,23 +30,38 @@ test("unmentioned group messages are ignored", async () => {
   const sent = [];
   const router = createRouter({
     store: createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-filter-"))),
-    send: (payload) => sent.push(payload)
+    send: (payload) => sent.push(payload),
   });
-  assert.equal((await router.accept(event({ chatType: "group", chatId: "oc_g", text: "noise" }))).action, "filtered");
+  assert.equal(
+    (
+      await router.accept(
+        event({ chatType: "group", chatId: "oc_g", text: "noise" }),
+      )
+    ).action,
+    "filtered",
+  );
   assert.equal(sent.length, 0);
 });
 
 test("unbound chats ask for a folder", async () => {
   const sent = [];
-  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-need-")));
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-need-")),
+  );
   const router = createRouter({ store, send: (payload) => sent.push(payload) });
-  assert.equal((await router.accept(event({ text: "改代码" }))).action, "need-folder");
+  assert.equal(
+    (await router.accept(event({ text: "改代码" }))).action,
+    "need-folder",
+  );
   assert.match(sent[0].text, /\/feishu folder p2p oc_dm/);
 });
 
 test("relative folders are rejected", async () => {
   const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-rel-")));
-  await assert.rejects(() => store.bindFolder("p2p:oc_dm", "relative"), /absolute/);
+  await assert.rejects(
+    () => store.bindFolder("p2p:oc_dm", "relative"),
+    /absolute/,
+  );
 });
 
 test("duplicate message ids are ignored", async () => {
@@ -53,15 +74,23 @@ test("duplicate message ids are ignored", async () => {
 });
 
 test("mentioned group messages are accepted", async () => {
-  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-mention-")));
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-mention-")),
+  );
   await store.bindFolder("group:oc_g", "/tmp/site");
-  const router = createRouter({ store, send: async () => {}, botOpenId: "ou_bot" });
-  const result = await router.accept(event({
-    chatType: "group",
-    chatId: "oc_g",
-    text: "@_bot 看下",
-    mentions: [{ key: "@_bot", id: { open_id: "ou_bot" } }]
-  }));
+  const router = createRouter({
+    store,
+    send: async () => {},
+    botOpenId: "ou_bot",
+  });
+  const result = await router.accept(
+    event({
+      chatType: "group",
+      chatId: "oc_g",
+      text: "@_bot 看下",
+      mentions: [{ key: "@_bot", id: { open_id: "ou_bot" } }],
+    }),
+  );
   assert.equal(result.action, "received");
 });
 
@@ -73,20 +102,24 @@ test("filtering precedes confirmation consumption", async () => {
     onMessage: () => {
       confirmations += 1;
       return "confirmed";
-    }
+    },
   });
-  const result = await router.accept(event({
-    chatType: "group",
-    chatId: "oc_g",
-    text: "确认",
-    mentions: [{ key: "@_other", id: { open_id: "ou_other" } }]
-  }));
+  const result = await router.accept(
+    event({
+      chatType: "group",
+      chatId: "oc_g",
+      text: "确认",
+      mentions: [{ key: "@_other", id: { open_id: "ou_other" } }],
+    }),
+  );
   assert.equal(result.action, "filtered");
   assert.equal(confirmations, 0);
 });
 
 test("retries a delivery whose send failed", async () => {
-  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-retry-")));
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-retry-")),
+  );
   await store.bindFolder("p2p:oc_dm", "/tmp/site");
   let sendSucceeds = false;
   let workCalls = 0;
@@ -98,7 +131,7 @@ test("retries a delivery whose send failed", async () => {
     },
     send: async () => {
       if (!sendSucceeds) throw new Error("send failed");
-    }
+    },
   });
   const inboundEvent = event({ messageId: "om_retry" });
   await assert.rejects(() => router.accept(inboundEvent), /send failed/);
@@ -108,7 +141,9 @@ test("retries a delivery whose send failed", async () => {
 });
 
 test("concurrent duplicate accepts execute work once", async () => {
-  const store = createStore(await mkdtemp(join(tmpdir(), "pi-im-feishu-race-")));
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-race-")),
+  );
   await store.bindFolder("p2p:oc_dm", "/tmp/site");
   let releaseWork;
   let workCalls = 0;
@@ -121,7 +156,7 @@ test("concurrent duplicate accepts execute work once", async () => {
         releaseWork = resolve;
       });
       return { text: "done" };
-    }
+    },
   });
   const inboundEvent = event({ messageId: "om_race" });
   const first = router.accept(inboundEvent);

@@ -294,8 +294,12 @@ export function createStore(home = defaultHome(), hooks = {}) {
         const updatedAt = Date.parse(existing?.updatedAt);
         const activeClaim = Number.isInteger(existing?.ownerPid)
           ? pidIsAlive(existing.ownerPid)
-          : Number.isFinite(updatedAt) && now - updatedAt <= DELIVERY_CLAIM_TTL_MS;
-        if (existing?.state === "complete" || (existing?.state === "in-progress" && activeClaim)) {
+          : Number.isFinite(updatedAt) &&
+            now - updatedAt <= DELIVERY_CLAIM_TTL_MS;
+        if (
+          existing?.state === "complete" ||
+          (existing?.state === "in-progress" && activeClaim)
+        ) {
           return { ...(current ?? {}), deliveries };
         }
         deliveries[messageId] = {
@@ -322,9 +326,12 @@ export function createStore(home = defaultHome(), hooks = {}) {
         };
         const completedIds = Object.entries(deliveries)
           .filter(([, delivery]) => delivery?.state === "complete")
-          .sort(([, a], [, b]) => String(a.updatedAt).localeCompare(String(b.updatedAt)))
+          .sort(([, a], [, b]) =>
+            String(a.updatedAt).localeCompare(String(b.updatedAt)),
+          )
           .map(([id]) => id);
-        for (const id of completedIds.slice(0, -deliveryLimit)) delete deliveries[id];
+        for (const id of completedIds.slice(0, -deliveryLimit))
+          delete deliveries[id];
         completed = true;
         return { ...(current ?? {}), deliveries };
       });

@@ -8,7 +8,8 @@ function nonEmpty(value) {
 function payload(event) {
   if (!event || typeof event !== "object") return {};
   if (event.message && typeof event.message === "object") return event;
-  if (event.event?.message && typeof event.event.message === "object") return event.event;
+  if (event.event?.message && typeof event.event.message === "object")
+    return event.event;
   return event;
 }
 
@@ -27,14 +28,17 @@ function parsedContent(message) {
 function withoutMentions(text, mentions) {
   let result = typeof text === "string" ? text : "";
   for (const mention of Array.isArray(mentions) ? mentions : []) {
-    if (typeof mention?.key === "string" && mention.key) result = result.replaceAll(mention.key, "");
+    if (typeof mention?.key === "string" && mention.key)
+      result = result.replaceAll(mention.key, "");
   }
   return result.replace(/\s+/g, " ").trim();
 }
 
 function mentionOpenIds(mentions) {
   return (Array.isArray(mentions) ? mentions : [])
-    .map((mention) => nonEmpty(mention?.id?.open_id) ?? nonEmpty(mention?.open_id))
+    .map(
+      (mention) => nonEmpty(mention?.id?.open_id) ?? nonEmpty(mention?.open_id),
+    )
     .filter(Boolean);
 }
 
@@ -47,7 +51,9 @@ export function isBotSender(event, botOpenId) {
 
 export function isMentioned(event, botOpenId) {
   if (!nonEmpty(botOpenId)) return false;
-  return mentionOpenIds(payload(event).message?.mentions ?? []).includes(botOpenId.trim());
+  return mentionOpenIds(payload(event).message?.mentions ?? []).includes(
+    botOpenId.trim(),
+  );
 }
 
 export function parseInbound(event, { botOpenId } = {}) {
@@ -67,11 +73,15 @@ export function parseInbound(event, { botOpenId } = {}) {
   else if (threadId) kind = "topic";
   else if (message.chat_type === "group") kind = "group";
   else return null;
-  const key = kind === "topic" ? chatKey({ kind, chatId, threadId }) : chatKey({ kind, chatId });
+  const key =
+    kind === "topic"
+      ? chatKey({ kind, chatId, threadId })
+      : chatKey({ kind, chatId });
   const content = parsedContent(message);
-  const text = message.message_type === "text"
-    ? withoutMentions(content?.text, message.mentions)
-    : "";
+  const text =
+    message.message_type === "text"
+      ? withoutMentions(content?.text, message.mentions)
+      : "";
   return {
     key,
     kind,
@@ -82,7 +92,8 @@ export function parseInbound(event, { botOpenId } = {}) {
     senderOpenId,
     senderType,
     text,
-    mentioned: message.chat_type === "p2p" ? true : isMentioned(event, botOpenId),
-    files: inboundFiles(event).map((file) => ({ ...file, messageId }))
+    mentioned:
+      message.chat_type === "p2p" ? true : isMentioned(event, botOpenId),
+    files: inboundFiles(event).map((file) => ({ ...file, messageId })),
   };
 }

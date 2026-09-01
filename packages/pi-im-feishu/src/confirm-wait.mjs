@@ -21,7 +21,8 @@ export function createConfirmWait(send) {
         waiter.resolve(false);
         return null;
       }
-      if (!waiter.senderOpenId || inbound.senderOpenId !== waiter.senderOpenId) return null;
+      if (!waiter.senderOpenId || inbound.senderOpenId !== waiter.senderOpenId)
+        return null;
       if (waiter.kind !== "p2p" && inbound.mentioned !== true) return null;
       const decision = decisionFor(inbound.text);
       if (!decision) return null;
@@ -47,9 +48,10 @@ export function createConfirmWait(send) {
           expiresAt: Date.now() + WAIT_MS,
           resolve,
           timer: setTimeout(() => {
-            if (pending.get(inbound.key) === waiter) pending.delete(inbound.key);
+            if (pending.get(inbound.key) === waiter)
+              pending.delete(inbound.key);
             resolve(false);
-          }, WAIT_MS)
+          }, WAIT_MS),
         };
         pending.set(inbound.key, waiter);
       });
@@ -57,7 +59,7 @@ export function createConfirmWait(send) {
         await send?.({
           chatId: inbound.chatId,
           text: confirmText({ kind, detail }),
-          inbound
+          inbound,
         });
       } catch (error) {
         if (pending.get(inbound.key) === waiter) pending.delete(inbound.key);
@@ -66,6 +68,6 @@ export function createConfirmWait(send) {
         throw error;
       }
       return asked;
-    }
+    },
   };
 }

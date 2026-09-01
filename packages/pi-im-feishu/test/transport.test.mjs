@@ -123,13 +123,43 @@ test("uploads images through image.create and replies inside a topic", async () 
     inbound: topicInbound,
     files: [{ kind: "image", path }],
   });
-  assert.equal(lark.imageUploads.length, 1);
+  assert.deepEqual(lark.imageUploads, [{ data: { image: Buffer.from("png") } }]);
   assert.equal(lark.fileUploads.length, 0);
   assert.deepEqual(lark.replyCalls[0], {
     path: { message_id: topicInbound.messageId },
     data: {
       msg_type: "image",
       content: JSON.stringify({ image_key: "ik" }),
+      reply_in_thread: true,
+    },
+  });
+});
+
+test("uploads ordinary files through file.create and replies inside a topic", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-file-"));
+  const path = join(home, "report.txt");
+  await writeFile(path, "report");
+  const lark = fakeLark();
+  const transport = createFeishuTransport({ lark, credentials });
+  await transport.send({
+    inbound: topicInbound,
+    files: [{ kind: "file", path }],
+  });
+  assert.equal(lark.imageUploads.length, 0);
+  assert.deepEqual(lark.fileUploads, [
+    {
+      data: {
+        file_type: "stream",
+        file_name: "report.txt",
+        file: Buffer.from("report"),
+      },
+    },
+  ]);
+  assert.deepEqual(lark.replyCalls[0], {
+    path: { message_id: topicInbound.messageId },
+    data: {
+      msg_type: "file",
+      content: JSON.stringify({ file_key: "fk" }),
       reply_in_thread: true,
     },
   });

@@ -81,7 +81,7 @@ export function createFeishuTransport({
     let key;
     if (image) {
       const uploaded = await client.im.v1.image.create({
-        data: { image_type: "message", image: buffer },
+        data: { image: buffer },
       });
       key = uploaded?.data?.image_key ?? uploaded?.image_key;
     } else {

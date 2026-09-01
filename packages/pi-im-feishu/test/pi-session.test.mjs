@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -20,6 +21,7 @@ function fakePi() {
     loaderOptions: null,
     sessionOptions: null,
     sessions: [],
+    onPrompt: null,
   };
   pi.getAgentDir = () => "/agent";
   pi.DefaultResourceLoader = class {
@@ -49,6 +51,7 @@ function fakePi() {
       tools: [],
       disposed: false,
       async prompt(text) {
+        await pi.onPrompt?.(options.customTools?.[0], text);
         this.messages.push({ role: "assistant", content: `reply:${text}` });
       },
       dispose() {
@@ -80,7 +83,7 @@ test("does not treat the Pi SDK peer as optional", async () => {
   assert.equal(typeof sdk.createAgentSession, "function");
 });
 
-test("disables ambient extensions and allowlists coding tools", async () => {
+test("disables ambient extensions and explicitly allowlists the Feishu file tool", async () => {
   const pi = fakePi();
   const run = createPiRunPrompt(pi);
   await run(message);
@@ -89,7 +92,76 @@ test("disables ambient extensions and allowlists coding tools", async () => {
   assert.equal(pi.loaderOptions.noExtensions, true);
   assert.equal(pi.loaderOptions.noPromptTemplates, true);
   assert.equal(pi.loaderOptions.noThemes, true);
-  assert.deepEqual(pi.sessionOptions.tools, tools);
+  assert.deepEqual(pi.sessionOptions.tools, [...tools, "send_feishu_file"]);
+  assert.equal(pi.sessionOptions.customTools.length, 1);
+  assert.equal(pi.sessionOptions.customTools[0].name, "send_feishu_file");
+});
+
+test("queues an in-workspace file only after requester confirmation", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "pi-im-feishu-tool-"));
+  const path = join(folder, "out.txt");
+  await writeFile(path, "result");
+  const pi = fakePi();
+  const confirmCalls = [];
+  pi.onPrompt = async (tool) => {
+    const response = await tool.execute("call-1", { path });
+    assert.match(response.content[0].text, /已加入发送队列/);
+  };
+  const run = createPiRunPrompt(pi);
+  const inbound = { key: "topic:oc:a", senderOpenId: "ou_requester" };
+  const result = await run({
+    ...message,
+    folder,
+    inbound,
+    confirm: async (request) => {
+      confirmCalls.push(request);
+      return true;
+    },
+  });
+  assert.equal(confirmCalls.length, 1);
+  assert.equal(confirmCalls[0].inbound, inbound);
+  assert.equal(confirmCalls[0].kind, "send_feishu_file");
+  assert.deepEqual(result.files, [{ path, kind: "file" }]);
+  pi.onPrompt = null;
+  assert.deepEqual(
+    (await run({ ...message, folder, text: "next run" })).files,
+    [],
+  );
+});
+
+test("does not queue denied files and clears the run context in finally", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "pi-im-feishu-tool-deny-"));
+  const path = join(folder, "out.txt");
+  await writeFile(path, "result");
+  const pi = fakePi();
+  let tool;
+  pi.onPrompt = async (currentTool) => {
+    tool = currentTool;
+    const response = await tool.execute("call-1", { path });
+    assert.match(response.content[0].text, /未确认/);
+  };
+  const run = createPiRunPrompt(pi);
+  const result = await run({
+    ...message,
+    folder,
+    confirm: async () => false,
+  });
+  assert.deepEqual(result.files, []);
+  const after = await tool.execute("late", { path });
+  assert.match(after.content[0].text, /当前运行/);
+});
+
+test("clears the file tool context when prompting fails", async () => {
+  const pi = fakePi();
+  let tool;
+  pi.onPrompt = async (currentTool) => {
+    tool = currentTool;
+    throw new Error("prompt failed");
+  };
+  const run = createPiRunPrompt(pi);
+  await assert.rejects(() => run(message), /prompt failed/);
+  const after = await tool.execute("late", { path: "/workspace/out.txt" });
+  assert.match(after.content[0].text, /当前运行/);
 });
 
 test("rejects an unavailable session factory instead of reducing capability", () => {

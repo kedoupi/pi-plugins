@@ -99,12 +99,31 @@ export async function runAssistant({
             text: "这条对话正在电脑窗口里打开，飞书侧暂停改代码。关掉窗口后再说。",
           };
         }
+        let workPayload = payload;
         if (payload.inbound.files?.length && payload.chat.folder) {
-          await stageInboundFiles(payload.chat.folder, payload.inbound.files, {
-            download: download ?? ((file) => activeTransport?.download?.(file)),
-          });
+          const saved = await stageInboundFiles(
+            payload.chat.folder,
+            payload.inbound.messageId,
+            payload.inbound.files,
+            {
+              download:
+                download ?? ((file) => activeTransport?.download?.(file)),
+            },
+          );
+          workPayload = {
+            ...payload,
+            inbound: {
+              ...payload.inbound,
+              text: [
+                payload.inbound.text,
+                `收到的文件：\n${saved.map((file) => file.path).join("\n")}`,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            },
+          };
         }
-        const result = await worker.work(payload);
+        const result = await worker.work(workPayload);
         if (
           result?.patch &&
           !payload.chat.sessionFile &&

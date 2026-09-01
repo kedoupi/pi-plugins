@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -91,6 +91,50 @@ test("ready transport is online and routes inbound", async () => {
   assert.equal(wrongMention.action, "filtered");
   await runtime.shutdown();
   assert.equal(transport.stopped, true);
+});
+
+test("stages inbound files and lists their paths in the current prompt", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-inbound-home-"));
+  const folder = await mkdtemp(join(tmpdir(), "pi-im-feishu-inbound-work-"));
+  const store = createStore(home);
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
+  await store.bindFolder("p2p:oc_dm", folder);
+  const prompts = [];
+  const runtime = await runAssistant({
+    home,
+    store,
+    transport: fakeTransport(),
+    download: async () => Buffer.from("inbound"),
+    runPrompt: async (payload) => {
+      prompts.push(payload.text);
+      return { text: "done", sessionFile: null };
+    },
+    handleSignals: false,
+  });
+  await runtime.router.accept({
+    sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
+    message: {
+      message_id: "om_file",
+      chat_id: "oc_dm",
+      chat_type: "p2p",
+      message_type: "file",
+      content: JSON.stringify({ file_key: "fk", file_name: "../report.txt" }),
+    },
+  });
+  const staged = join(
+    folder,
+    ".pi-im-feishu",
+    "inbox",
+    "om_file",
+    "report.txt",
+  );
+  assert.match(prompts[0], /收到的文件：/);
+  assert.ok(prompts[0].includes(staged));
+  assert.equal(await readFile(staged, "utf8"), "inbound");
+  await runtime.shutdown();
 });
 
 test("start requires binding; stop disables autostart; shutdown does not stop assistant", async () => {

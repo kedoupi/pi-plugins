@@ -1,3 +1,4 @@
+import { validateOutboundFile } from "./files.mjs";
 import { classifyToolCall } from "./tool-policy.mjs";
 
 export const CHILD_ENV = "PI_IM_FEISHU_ASSISTANT";
@@ -10,6 +11,7 @@ export const CODING_TOOLS = [
   "write",
   "bash",
 ];
+const SEND_FILE_TOOL = "send_feishu_file";
 
 function sdkError(cause) {
   return Object.assign(
@@ -64,7 +66,8 @@ export function interceptToolCalls(
   if (!Array.isArray(tools)) return () => {};
   const originals = [];
   for (const tool of tools) {
-    if (typeof tool?.execute !== "function") continue;
+    if (tool?.name === SEND_FILE_TOOL || typeof tool?.execute !== "function")
+      continue;
     const original = tool.execute;
     originals.push([tool, original]);
     tool.execute = async (...args) => {
@@ -90,6 +93,38 @@ export function interceptToolCalls(
   }
   return () => {
     for (const [tool, original] of originals) tool.execute = original;
+  };
+}
+
+function createSendFileTool(runContext) {
+  return {
+    name: SEND_FILE_TOOL,
+    label: "Send Feishu File",
+    description:
+      "Queue one file from the current workspace to send back to this Feishu requester after confirmation.",
+    parameters: {
+      type: "object",
+      properties: { path: { type: "string" } },
+      required: ["path"],
+      additionalProperties: false,
+    },
+    async execute(_toolCallId, { path } = {}) {
+      const current = runContext.current;
+      if (!current) return skipped("当前运行已结束，不能发送文件。");
+      const file = await validateOutboundFile(current.folder, path);
+      const confirmed =
+        typeof current.confirm === "function" &&
+        (await current.confirm({
+          inbound: current.inbound,
+          kind: SEND_FILE_TOOL,
+          detail: file.path,
+        }));
+      if (!confirmed) return skipped("用户未确认，文件未加入发送队列。");
+      if (runContext.current !== current)
+        return skipped("当前运行已结束，不能发送文件。");
+      current.files.push(file);
+      return skipped(`文件已加入发送队列：${file.path}`);
+    },
   };
 }
 
@@ -135,12 +170,15 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
       ? pi.SessionManager.open(requestedSessionFile)
       : pi.SessionManager.create(folder);
     const resourceLoader = createResourceLoader(pi, folder);
+    const runContext = { current: null };
+    const sendFileTool = createSendFileTool(runContext);
     await resourceLoader.reload();
     const created = await pi.createAgentSession({
       cwd: folder,
       sessionManager,
       resourceLoader,
-      tools: [...CODING_TOOLS],
+      tools: [...CODING_TOOLS, SEND_FILE_TOOL],
+      customTools: [sendFileTool],
     });
     if (!created?.session || typeof created.session.prompt !== "function") {
       await created?.session?.dispose?.();
@@ -156,6 +194,7 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
       requestedSessionFile,
       sessionFile: created.session.sessionFile ?? requestedSessionFile,
       session: created.session,
+      runContext,
     };
     pool.set(key, entry);
     return entry;
@@ -171,15 +210,23 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
   }) => {
     const key = inbound?.key ?? folder;
     const entry = await sessionFor(key, folder, sessionFile);
+    if (entry.runContext.current) {
+      throw Object.assign(new Error("Pi session is already running"), {
+        code: "session-busy",
+      });
+    }
     const restore = interceptToolCalls(entry.session, confirm, inbound, {
       folder,
       secrets,
     });
     const onAbort = () => entry.session.abort?.();
     signal?.addEventListener("abort", onAbort, { once: true });
+    const current = { folder, inbound, confirm, files: [] };
+    entry.runContext.current = current;
     try {
       await entry.session.prompt(text);
     } finally {
+      if (entry.runContext.current === current) entry.runContext.current = null;
       signal?.removeEventListener("abort", onAbort);
       restore();
     }
@@ -188,6 +235,7 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
     return {
       text: assistantText(entry.session) || "完成。",
       sessionFile: entry.sessionFile,
+      files: current.files,
     };
   };
   runner.release = async (key) => {

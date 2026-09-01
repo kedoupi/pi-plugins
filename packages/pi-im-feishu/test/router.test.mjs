@@ -13,6 +13,8 @@ function event({
   text = "hi",
   mentions,
   messageId = "om_1",
+  rootId,
+  threadId,
 }) {
   return {
     sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
@@ -22,6 +24,8 @@ function event({
       chat_type: chatType,
       message_type: "text",
       mentions,
+      root_id: rootId,
+      thread_id: threadId,
       content: JSON.stringify({ text }),
     },
   };
@@ -148,6 +152,40 @@ test("router persists a lifecycle patch after the runner is released", async () 
   assert.equal(released, true);
   assert.equal(chat.sessionFile, null);
   assert.equal(chat.archives[0].sessionFile, "/tmp/latest.jsonl");
+});
+
+test("returns queued files only to the originating topic", async () => {
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-topic-file-")),
+  );
+  await store.bindFolder("topic:oc_g:omt_thread", "/tmp/site");
+  const sent = [];
+  const router = createRouter({
+    store,
+    botOpenId: "ou_bot",
+    send: async (payload) => sent.push(payload),
+    work: async () => ({
+      text: "done",
+      files: [{ path: "/tmp/site/out.txt", kind: "file" }],
+    }),
+  });
+  const result = await router.accept(
+    event({
+      chatType: "group",
+      chatId: "oc_g",
+      messageId: "om_topic_file",
+      threadId: "omt_thread",
+      mentions: [{ key: "@_bot", id: { open_id: "ou_bot" } }],
+    }),
+  );
+  assert.equal(result.action, "work");
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].chatId, "oc_g");
+  assert.equal(sent[1].inbound.key, "topic:oc_g:omt_thread");
+  assert.equal(sent[1].inbound.messageId, "om_topic_file");
+  assert.deepEqual(sent[1].files, [
+    { path: "/tmp/site/out.txt", kind: "file" },
+  ]);
 });
 
 test("retries a delivery whose send failed", async () => {

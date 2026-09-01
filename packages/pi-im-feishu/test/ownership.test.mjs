@@ -13,7 +13,10 @@ async function fixture(options = {}) {
     folder: "/tmp/a",
     sessionFile: "/tmp/a.jsonl",
   });
-  return { store, coordinator: createOwnershipCoordinator({ store, ...options }) };
+  return {
+    store,
+    coordinator: createOwnershipCoordinator({ store, ...options }),
+  };
 }
 
 test("grants the window only after the assistant releases the session", async () => {

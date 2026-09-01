@@ -188,7 +188,10 @@ test("attach validates the session and waits for the assistant grant", async () 
     folder: home,
     sessionFile,
   });
-  assert.equal((await control.attach("p2p:missing", home)).code, "unknown-chat");
+  assert.equal(
+    (await control.attach("p2p:missing", home)).code,
+    "unknown-chat",
+  );
 
   await control.start();
   const result = await control.attach("p2p:a", home, process.pid);

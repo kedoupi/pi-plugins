@@ -5,7 +5,13 @@ import { createAutostart } from "./autostart.mjs";
 import { macosAutostart } from "./macos-autostart.mjs";
 import { createOwnershipCoordinator } from "./ownership.mjs";
 import { createLock, onlineLabel } from "./lock.mjs";
-import { assistantScriptPath, defaultHome, HEARTBEAT_MS, HOME_ENV, logPath } from "./paths.mjs";
+import {
+  assistantScriptPath,
+  defaultHome,
+  HEARTBEAT_MS,
+  HOME_ENV,
+  logPath,
+} from "./paths.mjs";
 import { chatKey, createStore } from "./store.mjs";
 
 function sleep(ms) {
@@ -132,14 +138,16 @@ export function createAssistantControl(
       return {
         ...status,
         presence: onlineLabel(owner),
-        assistant: owner
+        assistant: owner,
       };
     },
 
     async start() {
       const credentials = await store.loadCredentials();
       if (!credentials) {
-        throw Object.assign(new Error("请先绑定飞书。"), { code: "not-configured" });
+        throw Object.assign(new Error("请先绑定飞书。"), {
+          code: "not-configured",
+        });
       }
       const current = await lock.read();
       if (current?.status === "online") {
@@ -151,11 +159,19 @@ export function createAssistantControl(
       } else {
         const logFile = await open(logPath(home), "a");
         try {
-          const child = spawn(process.execPath, [fileURLToPath(assistantScriptPath())], {
-            detached: true,
-            stdio: ["ignore", logFile.fd, logFile.fd],
-            env: { ...process.env, [HOME_ENV]: home, PI_IM_FEISHU_ASSISTANT: "1" }
-          });
+          const child = spawn(
+            process.execPath,
+            [fileURLToPath(assistantScriptPath())],
+            {
+              detached: true,
+              stdio: ["ignore", logFile.fd, logFile.fd],
+              env: {
+                ...process.env,
+                [HOME_ENV]: home,
+                PI_IM_FEISHU_ASSISTANT: "1",
+              },
+            },
+          );
           child.unref();
         } finally {
           await logFile.close();
@@ -163,10 +179,13 @@ export function createAssistantControl(
       }
       const owner = await waitForOnline();
       if (owner?.status !== "online") {
-        throw Object.assign(new Error("飞书没有上线。请看助手日志；可能被其它客户端占用。"), {
-          code: "not-online",
-          owner
-        });
+        throw Object.assign(
+          new Error("飞书没有上线。请看助手日志；可能被其它客户端占用。"),
+          {
+            code: "not-online",
+            owner,
+          },
+        );
       }
       try {
         await auto.enable();
@@ -209,6 +228,6 @@ export function createAssistantControl(
     async bindFolder(kind, chatId, folder) {
       const key = chatKey({ kind, chatId });
       return store.bindFolder(key, folder);
-    }
+    },
   };
 }

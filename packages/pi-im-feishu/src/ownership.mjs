@@ -39,8 +39,7 @@ export function createOwnershipCoordinator({
           (current.owner === "window" ||
             current.state === "requested" ||
             current.state === "releasing") &&
-          ((Number.isFinite(heartbeatAt) &&
-            now() - heartbeatAt <= STALE_MS) ||
+          ((Number.isFinite(heartbeatAt) && now() - heartbeatAt <= STALE_MS) ||
             isAlive(current.pid));
         if (activeWindowRequest) {
           throw Object.assign(new Error("这条对话已经在另一个窗口里打开。"), {
@@ -94,7 +93,9 @@ export function createOwnershipCoordinator({
             await worker?.release?.(chat.key);
             const released = await runner?.release?.(chat.key);
             const sessionFile =
-              released?.sessionFile ?? requested.sessionFile ?? chat.sessionFile;
+              released?.sessionFile ??
+              requested.sessionFile ??
+              chat.sessionFile;
             let granted = false;
             await store.updateOwnership(chat.key, (latest, record) => {
               if (
@@ -171,7 +172,10 @@ export function createOwnershipCoordinator({
 
     async canAssistantWrite(key) {
       const current = await store.readOwnership(key);
-      if (!current || current.owner === "assistant" && current.state === "owned") {
+      if (
+        !current ||
+        (current.owner === "assistant" && current.state === "owned")
+      ) {
         return true;
       }
       if (current.owner !== "window" || current.state !== "owned") return false;
@@ -196,7 +200,9 @@ export function createOwnershipCoordinator({
           heartbeatAt: timestamp(now),
         };
       });
-      return reclaimed || (await store.readOwnership(key))?.owner === "assistant";
+      return (
+        reclaimed || (await store.readOwnership(key))?.owner === "assistant"
+      );
     },
 
     async close() {

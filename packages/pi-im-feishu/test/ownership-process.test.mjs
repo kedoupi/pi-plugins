@@ -10,7 +10,9 @@ import { createStore } from "../src/store.mjs";
 const ownershipUrl = pathToFileURL(
   join(import.meta.dirname, "../src/ownership.mjs"),
 ).href;
-const storeUrl = pathToFileURL(join(import.meta.dirname, "../src/store.mjs")).href;
+const storeUrl = pathToFileURL(
+  join(import.meta.dirname, "../src/store.mjs"),
+).href;
 
 const childSource = `
 import { createOwnershipCoordinator } from ${JSON.stringify(ownershipUrl)};
@@ -71,7 +73,10 @@ function child(role, home, sessionFile) {
 
 function waitFor(childProcess, type, timeoutMs = 5_000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`timed out waiting for ${type}`)), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error(`timed out waiting for ${type}`)),
+      timeoutMs,
+    );
     const onMessage = (message) => {
       if (message?.type !== type) return;
       clearTimeout(timer);
@@ -115,11 +120,13 @@ test("assistant and window processes never hold overlapping write intervals", as
   const windowExit = exited(window);
   t.after(() => window.kill("SIGKILL"));
 
-  const [assistantPaused, windowInterval, assistantResumed] = await Promise.all([
-    waitFor(assistant, "assistant-paused"),
-    waitFor(window, "window"),
-    waitFor(assistant, "assistant-resumed"),
-  ]);
+  const [assistantPaused, windowInterval, assistantResumed] = await Promise.all(
+    [
+      waitFor(assistant, "assistant-paused"),
+      waitFor(window, "window"),
+      waitFor(assistant, "assistant-resumed"),
+    ],
+  );
   await Promise.all([assistantExit, windowExit]);
 
   assert.ok(assistantPaused.interval[1] <= windowInterval.interval[0]);

@@ -18,9 +18,12 @@ test("extension registers /feishu and does not start sockets in the factory", ()
     },
     on(name, handler) {
       hooks.push({ name, handler });
-    }
+    },
   });
-  assert.deepEqual(commands.map((item) => item.name), ["feishu"]);
+  assert.deepEqual(
+    commands.map((item) => item.name),
+    ["feishu"],
+  );
   assert.ok(hooks.some((hook) => hook.name === "session_start"));
   assert.ok(hooks.some((hook) => hook.name === "session_shutdown"));
 });
@@ -160,13 +163,7 @@ test("session lifecycle heartbeats and releases only its matching lease", async 
   await hooks.get("session_shutdown")({}, context);
   assert.deepEqual(calls, [
     ["heartbeat", "p2p:a", "request-a", process.pid],
-    [
-      "release",
-      "p2p:a",
-      "request-a",
-      process.pid,
-      "/tmp/a.jsonl",
-    ],
+    ["release", "p2p:a", "request-a", process.pid, "/tmp/a.jsonl"],
   ]);
 });
 
@@ -209,30 +206,37 @@ test("session_shutdown does not release a lease for another session", async () =
 test("session_shutdown does not stop the assistant", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-tui-"));
   const bind = createBind(home);
-  await bind.store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  await bind.store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
   const control = createAssistantControl(home, {
     autostart: createAutostart(),
-    runner: async ({ store, lock }) => runAssistant({
-      home,
-      store,
-      lock,
-      transport: {
-        isReady: () => true,
-        async start() {},
-        async stop() {},
-        async send() {}
-      },
-      handleSignals: false
-    })
+    runner: async ({ store, lock }) =>
+      runAssistant({
+        home,
+        store,
+        lock,
+        transport: {
+          isReady: () => true,
+          async start() {},
+          async stop() {},
+          async send() {},
+        },
+        handleSignals: false,
+      }),
   });
   await control.start();
   const hooks = new Map();
-  createFeishuExtension({
-    registerCommand() {},
-    on(name, handler) {
-      hooks.set(name, handler);
-    }
-  }, { bind, assistant: control });
+  createFeishuExtension(
+    {
+      registerCommand() {},
+      on(name, handler) {
+        hooks.set(name, handler);
+      },
+    },
+    { bind, assistant: control },
+  );
   await hooks.get("session_shutdown")();
   assert.equal((await control.snapshot()).presence, "online");
   await control.stop();

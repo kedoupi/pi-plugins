@@ -25,7 +25,7 @@ future Suite 只在至少有一个可发布第一方 Package 后创建，并从�
 → 创建 GitHub Release
 ```
 
-发布仍需维护者明确触发 Tag，不允许 Skill 静默发布。
+发布仍需维护者明确触发 Tag，不允许 Skill 静默发布。`@kedoupi/pi-im-feishu` 当前没有 publish workflow，也未发布；“自动化通过”只表示可进入真实应用测试，不等于可发布。
 
 ## Trusted Publishing
 
@@ -33,12 +33,14 @@ future Suite 只在至少有一个可发布第一方 Package 后创建，并从�
 
 ## Rollback
 
+运行中的常驻 Package 先在 TUI 执行 `/feishu stop`（适用时），再切换版本：
+
 ```bash
 pi install npm:@kedoupi/<real-package-name>@1.2.3
 pi install npm:@kedoupi/<real-package-name>@1.2.2
 ```
 
-固定版本不会被普通 Package 更新自动推进。每个 README 必须说明升级、卸载和回滚。
+固定版本不会被普通 Package 更新自动推进。Package 替换与 `pi remove` 不应删除 `~/.pi/agent/<package>/` 机器状态；回滚前备份状态，卸载后是否永久删除状态由维护者另行决定。每个 README 必须说明更新、卸载和回滚。
 
 ## First-package prerequisites
 
@@ -47,4 +49,6 @@ pi install npm:@kedoupi/<real-package-name>@1.2.2
 - 确认 GitHub 新仓库名称采用 `kedoupi/pi-plugins`。
 - 确认 npm 账号拥有或可创建 `@kedoupi` scope。
 - 为 npm Trusted Publishing 配置 GitHub 仓库与 workflow 绑定。
-- 选择首个真实第一方 Package；当前候选是 `@kedoupi/pi-im-feishu`，见 [产研文档](./pi-im-feishu/README.md)。文档未批准、包未 dogfood、维护者未确认前，不创建空 Suite、虚假示例或 publish workflow。
+- 首个真实第一方 Package 是 `@kedoupi/pi-im-feishu`，见 [产研文档](./pi-im-feishu/README.md)。发布前证据顺序固定为：项目级源码 → 临时目录自动化 → 一次性真实应用 → 全局本地源码 dogfood → 维护者发布确认。
+- 自动化通过后仍须记录真实 Feishu/Lark 长连接、macOS launchd（适用时）、模型成本边界、更新和回滚结果；注入边界测试不能替代这些证据。
+- 文档未批准、真实应用与 dogfood 未完成、维护者未确认前，不创建空 Suite、虚假示例或 publish workflow。

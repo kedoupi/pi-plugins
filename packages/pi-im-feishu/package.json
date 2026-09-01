@@ -22,6 +22,8 @@
     "CHANGELOG.md"
   ],
   "scripts": {
+    "check": "npm run typecheck && for file in src/*.mjs bin/*.mjs; do node --check \"$file\"; done",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.mjs"
   },
   "pi": {

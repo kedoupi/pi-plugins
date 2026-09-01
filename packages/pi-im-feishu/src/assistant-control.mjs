@@ -326,7 +326,7 @@ export function createAssistantControl(
         throw error;
       }
       const started = await control.start(options);
-      if (stopped.autostart?.error) {
+      if (stopped.autostart?.error && started.autostart?.enabled !== true) {
         await store.setLastError(stopped.autostart.error);
         return { ...started, lastError: stopped.autostart.error };
       }

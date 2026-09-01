@@ -152,9 +152,13 @@ export async function runAssistant({
       process.on("SIGINT", signalHandler);
     }
 
+    const onDisconnect = (error) => {
+      if (error) logger.error?.("[pi-im-feishu] transport disconnected", error);
+      return lock.heartbeat("offline");
+    };
     if (!activeTransport) {
       if (typeof connect === "function") {
-        activeTransport = await connect({ credentials, router });
+        activeTransport = await connect({ credentials, router, onDisconnect });
       } else {
         const lark = await loadLarkSdk();
         if (!lark) {
@@ -166,11 +170,7 @@ export async function runAssistant({
           lark,
           credentials,
           onMessage: (event) => router.accept(event),
-          onDisconnect: (error) => {
-            if (error)
-              logger.error?.("[pi-im-feishu] transport disconnected", error);
-            return lock.heartbeat("offline");
-          },
+          onDisconnect,
           logger,
         });
       }

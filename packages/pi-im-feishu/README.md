@@ -1,95 +1,107 @@
 # @kedoupi/pi-im-feishu
 
-Keep one Feishu bot online on this computer. Chat in Feishu; open Pi only to look or attach.
+Keep one Feishu or Lark bot online on this computer. Chat remotely; open Pi only to configure it or attach a conversation.
 
-Approved docs: [docs/pi-im-feishu](../../docs/pi-im-feishu/README.md).
+Approved product and technical documents: [docs/pi-im-feishu](../../docs/pi-im-feishu/README.md).
 
 ## About
 
-This package binds **one Feishu bot to the computer**. A resident assistant keeps Feishu online after the Pi window closes. **Online** means Feishu can deliver messages here **and** the assistant process is running.
+The Package runs a resident assistant after the Pi window closes. **Online** means the Feishu long connection is ready and the assistant process owns the machine lock. Each private chat, group, or topic has its own bound folder and Pi session.
 
-Each Feishu chat is its own line of work. After a folder is bound, Feishu text runs the local coding agent in that folder (serial per chat). `/stop` in Feishu aborts the current run. Destructive tools ask for 确认 in Feishu. The Pi window is a remote.
+Automated tests inject the Feishu transport and API boundaries. They prove local routing and lifecycle behavior, not connectivity to a real Feishu tenant. The Package is ready for a disposable-app local test; it is not published or production-tested.
 
 ## Installation
+
+Project-local source loading is the first step:
+
+```bash
+pi --no-extensions -e ./packages/pi-im-feishu/extensions/index.ts
+```
+
+After automated smoke passes, install the local source for dogfood:
 
 ```bash
 pi install /absolute/path/pi-plugins/packages/pi-im-feishu
 ```
 
-After a release:
-
-```bash
-pi install npm:@kedoupi/pi-im-feishu
-```
-
-`@larksuiteoapi/node-sdk` is a runtime dependency and installs with the package. You should not install it yourself. Do not load a local path and the npm package at the same time.
+Do not install a local source and an npm version together. No npm release exists yet; publishing requires maintainer confirmation.
 
 ## Quick Start
 
-1. Install and start Pi.
-2. Bind Feishu (same bot either way):
-
-   ```text
-   /feishu setup manual cli_xxx <app-secret>
-   ```
-
-   or `/feishu setup qr`.
-
-3. Status must say 在线 only after Feishu can receive. Close Pi; Feishu should still be received.
-4. `/feishu stop` takes it offline. After stop, login must not start it again.
+1. In Pi TUI, run `/feishu setup qr`, or run `/feishu setup manual cli_xxx feishu` and enter the App Secret in the masked prompt. Use `lark` for Lark.
+2. Check `/feishu status`. Online is shown only after the long connection is ready.
+3. Bind an absolute folder with `/feishu folder <full-chat-key> /absolute/path`.
+4. Test with a disposable Feishu/Lark app before global dogfood. Closing Pi does not stop the assistant; the computer still needs power, network, and an awake user session.
 
 ## Commands, Tools, and Shortcuts
 
-- `/feishu setup qr` — scan to create/authorize
-- `/feishu setup manual <appId> <appSecret> [feishu|lark]` — existing app
-- `/feishu start` / `/feishu stop`
-- `/feishu status` / `/feishu chats`
-- `/feishu folder <p2p|group> <chatId> <absolute-path>`
-- `/feishu attach <chat-key>` — if the folder matches, pauses assistant writes for that chat
+Pi TUI:
 
-In Feishu: `/stop`，新对话，换文件夹 /绝对路径，以前的，帮助。 Chat files are copied into the bound folder. Result files can be sent back when the agent returns them.
+- `/feishu setup qr`
+- `/feishu setup manual <appId> [feishu|lark]` — secret is requested separately and masked
+- `/feishu start`, `/feishu stop`, `/feishu status`, `/feishu chats`
+- `/feishu folder <full-chat-key> <absolute-path>`
+- `/feishu attach <full-chat-key>` — transfers the existing session from the assistant to this Pi window; closing the matching window releases it
+
+Full keys are `p2p:<chat-id>`, `group:<chat-id>`, or `topic:<chat-id>:<thread-id>`. Print and JSON modes refuse setup, start, stop, folder, and attach without prompting, spawning, or opening a socket.
+
+In Feishu: `/stop`, `新对话`, `换文件夹 /绝对路径`, `以前的`, `以前的 1`, and `帮助`. Group/topic work requires a real mention of the configured bot. Important operations are confirmed only by the original requester in the same chat; group/topic confirmation also requires a bot mention.
+
+Inbound attachments are staged collision-safely at `<bound-folder>/.pi-im-feishu/inbox/<message-id>/<safe-name>`. The controlled `send_feishu_file` tool can queue one regular file inside the bound folder, asks the requester for confirmation, and sends only to the originating chat/topic.
 
 ## Configuration
 
-`~/.pi/agent/pi-im-feishu/` or `PI_IM_FEISHU_HOME`:
+Default machine state is `~/.pi/agent/pi-im-feishu/`; tests may override it with `PI_IM_FEISHU_HOME`.
 
-- `config.json` — bot metadata and chat list (no secret)
-- `secrets.json` — App Secret, `0600`
-- `assistant.lock` — who owns the assistant
-- `assistant.log` — assistant output
+- `config.json` — bot metadata, chats, delivery/confirmation state, and ownership leases; no App Secret
+- `secrets.json` — App Secret, created as `0600`
+- `assistant.lock` — process presence and readiness heartbeat
+- `assistant.log` — resident-process output
+- `config.lock` and lock guards — short-lived cross-process mutation locks
 
-Groups: mention only. Folders must be absolute.
+State directories are private (`0700`). Session files remain Pi-native JSONL files. Package replacement or removal does not delete machine state.
 
 ## Environment Variables
 
-- `PI_IM_FEISHU_HOME` — state directory
-- `PI_IM_FEISHU_ASSISTANT=1` — set on the spawned assistant
+- `PI_IM_FEISHU_HOME` — override the machine-state directory
+- `PI_IM_FEISHU_ASSISTANT=1` — internal child-process guard set by the Package
 
-No `FEISHU_*` credentials.
+Credentials are not accepted through `FEISHU_*` environment variables.
 
 ## Permissions and Security
 
-Anyone who can DM this bot can talk to it (no allowlist in v1). Groups require @. Ordinary tools run automatically; destructive actions confirm in Feishu with 确认.
+This is a remote coding agent, not an OS sandbox. Anyone who can DM the bot can request work in v1; groups/topics require @mention. Read-only work and new in-workspace files may run automatically. Existing-file edits, destructive or non-read-only shell work, installation/service/deployment changes, outside-workspace access, network operations, and file sending require requester confirmation. Shell commands still run with the current user's OS permissions after confirmation.
 
-- Secret never appears in status.
-- Closing the Pi window does not stop the assistant; `/feishu stop` does.
-- No public HTTP webhook. Long connection only.
-- Login autostart: if last action was stop, reboot must not come online.
-- Attach never silently changes directory.
+Review model/provider configuration and cost before leaving the assistant online. Prompts can consume paid model tokens. Keep the App Secret private and use a disposable app for first testing. No public webhook is opened.
 
 ## Known Conflicts
 
-Do not run `ax-feishu-bridge` on the same Feishu app. This package uses its own lock, not `~/.pi/agent/locks.json`. If the WebSocket fails, status is offline and may say another client holds the app.
+Do not run `ax-feishu-bridge` or another long-connection client on the same app. This Package uses its own lock and cannot coordinate with another client's lock. A conflicting or disconnected socket is reported offline.
+
+Login autostart is implemented only for macOS launchd. Automated tests inject launchctl; they do not prove a real LaunchAgent on this machine. Unsupported platforms report autostart as unsupported. Stop still terminates the assistant if autostart removal fails. During rebind, a recovered disable error is cleared after the new start successfully enables autostart; unrecovered errors remain visible.
 
 ## Update and Rollback
 
-`/feishu stop` before replacing a running checkout. `pi remove` to uninstall. After publish, pin with `pi install npm:@kedoupi/pi-im-feishu@<version>`.
+Stop before changing code:
+
+```text
+/feishu stop
+```
+
+For a local-source update, replace the Package checkout and start again. Remove with `pi remove /absolute/path/pi-plugins/packages/pi-im-feishu`; machine state remains under the path above. After a future release, pin or roll back explicitly:
+
+```bash
+pi install npm:@kedoupi/pi-im-feishu@<version>
+```
+
+Back up machine state before destructive manual cleanup. Never delete it as part of a Package rollback.
 
 ## Compatibility
 
 - Node.js 22 or newer
-- Pi coding agent `peerDependencies: "*"`
-- Project-local; not yet verified against a published Pi release
+- Pi coding agent is a required peer (`peerDependencies: "*"`)
+- Installed-tarball smoke currently resolves the local Pi peer `0.84.4`
+- Feishu SDK boundary tests use injected clients; real Feishu/Lark connectivity remains a disposable-app acceptance step
 
 ## License
 

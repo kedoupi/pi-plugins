@@ -22,7 +22,7 @@ The repository root is a private development workspace, not an installable Pi Pa
 - Documented local development, testing, publishing, and security rules.
 - Node.js 22 CI with no publishing credentials.
 
-No first-party Package is published to npm yet. `@kedoupi/pi-im-feishu` exists as a project-local skeleton under `packages/pi-im-feishu`. Docs: [docs/pi-im-feishu](./docs/pi-im-feishu/README.md).
+No first-party Package is published to npm yet. `@kedoupi/pi-im-feishu` is implemented under `packages/pi-im-feishu`, with source, process, and installed-tarball automation complete. Those tests inject Feishu boundaries and do not prove real tenant connectivity. Docs: [docs/pi-im-feishu](./docs/pi-im-feishu/README.md).
 
 ## Curated Catalog
 
@@ -77,7 +77,7 @@ Do not commit secrets, `.env` files, private inventory, or machine-specific path
 
 ## Roadmap
 
-`@kedoupi/pi-im-feishu` is project-local through plan Task 6. Automated tests are green. Remaining work is human install/dogfood (Task 7), then publishing. A Suite remains out of scope until that cycle is proven.
+`@kedoupi/pi-im-feishu` is ready for the maintainer's disposable-app test and local-source dogfood after automated gates pass. Real Feishu/Lark connectivity, macOS launchd behavior, and model use still require controlled local evidence. Publishing remains a separate proposal requiring explicit maintainer confirmation; a Suite stays out of scope until that cycle is proven.
 
 Speculative demonstration Packages remain out of scope.
 

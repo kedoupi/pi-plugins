@@ -341,6 +341,51 @@ test("rebind verifies, stops, writes, and starts in order", async () => {
   await control.stop();
 });
 
+test("rebind clears a recovered stop autostart error after start enables autostart", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-rebind-recovery-"));
+  const store = createStore(home);
+  await store.bindBot({
+    appId: "cli_oldabcdefghijkl",
+    appSecret: "old-secret-value",
+    botOpenId: "ou_old",
+  });
+  const control = createAssistantControl(home, {
+    store,
+    bind: {
+      async verify(candidate) {
+        return { ...candidate, boundVia: "manual", botOpenId: "ou_new" };
+      },
+      async writeVerified(candidate) {
+        return store.bindBot(candidate);
+      },
+    },
+    autostart: createAutostart({
+      install: async () => {},
+      uninstall: async () => {
+        throw Object.assign(new Error("launchctl unload failed"), {
+          code: "launchctl-unload",
+        });
+      },
+    }),
+    runner: async ({ lock }) => {
+      await lock.acquire({ appId: "cli_newabcdefghijkl" });
+      await lock.heartbeat("online");
+      return { shutdown: () => lock.release() };
+    },
+  });
+
+  const result = await control.rebind({
+    appId: "cli_newabcdefghijkl",
+    appSecret: "new-secret-value",
+    domain: "feishu",
+  });
+
+  assert.equal(result.autostart.enabled, true);
+  assert.equal(result.lastError, null);
+  assert.equal((await store.status()).lastError, null);
+  await control.stop();
+});
+
 test("attach timeout reclaims a request while the assistant is still releasing", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-attach-timeout-"));
   const sessionFile = join(home, "session.jsonl");

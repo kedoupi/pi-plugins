@@ -30,7 +30,10 @@ test("stop aborts the running job and cancels the queued job", async () => {
   const worker = createWork({ runPrompt });
   const chat = { folder: "/tmp/a" };
   const first = worker.work({ inbound: { key: "p2p:a", text: "first" }, chat });
-  const second = worker.work({ inbound: { key: "p2p:a", text: "second" }, chat });
+  const second = worker.work({
+    inbound: { key: "p2p:a", text: "second" },
+    chat,
+  });
   const stopped = await worker.work({
     inbound: { key: "p2p:a", text: "/stop" },
     chat,
@@ -139,12 +142,15 @@ test("router with work replies using prompt text and stores sessionFile", async 
   await store.bindFolder("p2p:oc_dm", "/tmp/site");
   const sent = [];
   const worker = createWork({
-    runPrompt: async ({ folder }) => ({ text: `ok:${folder}`, sessionFile: "/tmp/site/s.jsonl" })
+    runPrompt: async ({ folder }) => ({
+      text: `ok:${folder}`,
+      sessionFile: "/tmp/site/s.jsonl",
+    }),
   });
   const router = createRouter({
     store,
     send: (payload) => sent.push(payload),
-    work: (payload) => worker.work(payload)
+    work: (payload) => worker.work(payload),
   });
   const result = await router.accept({
     sender: { sender_type: "user", sender_id: { open_id: "ou_user" } },
@@ -153,28 +159,34 @@ test("router with work replies using prompt text and stores sessionFile", async 
       chat_id: "oc_dm",
       chat_type: "p2p",
       message_type: "text",
-      content: JSON.stringify({ text: "帮我改" })
-    }
+      content: JSON.stringify({ text: "帮我改" }),
+    },
   });
   assert.equal(result.action, "work");
   assert.equal(sent[0].text, "ok:/tmp/site");
-  assert.equal((await store.getChat("p2p:oc_dm")).sessionFile, "/tmp/site/s.jsonl");
+  assert.equal(
+    (await store.getChat("p2p:oc_dm")).sessionFile,
+    "/tmp/site/s.jsonl",
+  );
 });
 
 test("新对话 archives session without calling the model", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-new-"));
   const store = createStore(home);
-  await store.upsertChat("p2p:oc_dm", { folder: "/tmp/site", sessionFile: "/tmp/old.jsonl" });
+  await store.upsertChat("p2p:oc_dm", {
+    folder: "/tmp/site",
+    sessionFile: "/tmp/old.jsonl",
+  });
   let called = false;
   const worker = createWork({
     runPrompt: async () => {
       called = true;
       return { text: "nope" };
-    }
+    },
   });
   const result = await worker.work({
     inbound: { key: "p2p:oc_dm", text: "新对话" },
-    chat: await store.getChat("p2p:oc_dm")
+    chat: await store.getChat("p2p:oc_dm"),
   });
   assert.equal(called, false);
   assert.equal(result.patch.sessionFile, null);

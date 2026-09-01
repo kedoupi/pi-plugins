@@ -32,7 +32,10 @@ export function parseFeishuCommand(text) {
   if (folder) return { name: "folder", folder: folder[1] };
   const previous = value.match(PREVIOUS);
   if (previous) {
-    return { name: "previous", index: previous[1] ? Number(previous[1]) : null };
+    return {
+      name: "previous",
+      index: previous[1] ? Number(previous[1]) : null,
+    };
   }
   return null;
 }
@@ -69,8 +72,8 @@ async function readSessionCwd(sessionFile) {
         ? header.cwd
         : null;
     }
-  } catch {}
-  finally {
+  } catch {
+  } finally {
     lines.close();
     input.destroy();
   }

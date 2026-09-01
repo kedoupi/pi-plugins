@@ -30,13 +30,17 @@ async function readOwner(lockDir) {
   }
 }
 
-export async function withFileLock(lockDir, fn, {
-  timeoutMs = 1_000,
-  staleMs = 30_000,
-  pid = process.pid,
-  isAlive = processIsAlive,
-  now = Date.now
-} = {}) {
+export async function withFileLock(
+  lockDir,
+  fn,
+  {
+    timeoutMs = 1_000,
+    staleMs = 30_000,
+    pid = process.pid,
+    isAlive = processIsAlive,
+    now = Date.now,
+  } = {},
+) {
   const deadline = now() + timeoutMs;
   const token = randomUUID();
   await mkdir(dirname(lockDir), { recursive: true, mode: 0o700 });
@@ -48,7 +52,7 @@ export async function withFileLock(lockDir, fn, {
         await atomicWriteJson(join(lockDir, "owner.json"), {
           pid,
           createdAt: new Date(now()).toISOString(),
-          token
+          token,
         });
       } catch (error) {
         await rm(lockDir, { recursive: true, force: true });
@@ -68,10 +72,13 @@ export async function withFileLock(lockDir, fn, {
         }
       }
       if (now() >= deadline) {
-        throw Object.assign(new Error(`timed out waiting for file lock: ${lockDir}`), {
-          code: "lock-timeout",
-          owner
-        });
+        throw Object.assign(
+          new Error(`timed out waiting for file lock: ${lockDir}`),
+          {
+            code: "lock-timeout",
+            owner,
+          },
+        );
       }
       await delay(Math.min(10, Math.max(1, deadline - now())));
     }
@@ -81,6 +88,7 @@ export async function withFileLock(lockDir, fn, {
     return await fn();
   } finally {
     const owner = await readOwner(lockDir);
-    if (owner?.token === token) await rm(lockDir, { recursive: true, force: true });
+    if (owner?.token === token)
+      await rm(lockDir, { recursive: true, force: true });
   }
 }

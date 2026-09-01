@@ -1,12 +1,23 @@
 import { classifyToolCall } from "./tool-policy.mjs";
 
 export const CHILD_ENV = "PI_IM_FEISHU_ASSISTANT";
-export const CODING_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"];
+export const CODING_TOOLS = [
+  "read",
+  "grep",
+  "find",
+  "ls",
+  "edit",
+  "write",
+  "bash",
+];
 
 function sdkError(cause) {
-  return Object.assign(new Error("Pi SDK 未安装或不可用，无法启动飞书助手。", { cause }), {
-    code: "pi-sdk-missing",
-  });
+  return Object.assign(
+    new Error("Pi SDK 未安装或不可用，无法启动飞书助手。", { cause }),
+    {
+      code: "pi-sdk-missing",
+    },
+  );
 }
 
 export async function loadPiSdk() {
@@ -29,7 +40,9 @@ export async function loadPiSdk() {
 
 export function assistantText(session) {
   const messages = session?.messages ?? [];
-  const last = [...messages].reverse().find((message) => message.role === "assistant");
+  const last = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant");
   if (typeof last?.content === "string") return last.content;
   if (Array.isArray(last?.content)) {
     return last.content.map((part) => part.text ?? "").join("");
@@ -56,14 +69,20 @@ export function interceptToolCalls(
     originals.push([tool, original]);
     tool.execute = async (...args) => {
       const input = args[1] && typeof args[1] === "object" ? args[1] : args[0];
-      const decision = await classifyToolCall(tool.name, input ?? {}, { folder, secrets });
-      if (decision.blocked) return skipped("工具调用超出工作区，已阻止并跳过。");
+      const decision = await classifyToolCall(tool.name, input ?? {}, {
+        folder,
+        secrets,
+      });
+      if (decision.blocked)
+        return skipped("工具调用超出工作区，已阻止并跳过。");
       if (decision.confirm) {
-        const ok = typeof confirm === "function" && await confirm({
-          inbound,
-          kind: tool.name,
-          detail: decision.detail,
-        });
+        const ok =
+          typeof confirm === "function" &&
+          (await confirm({
+            inbound,
+            kind: tool.name,
+            detail: decision.detail,
+          }));
         if (!ok) return skipped("用户未确认，已跳过。");
       }
       return original.apply(tool, args);
@@ -125,9 +144,12 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
     });
     if (!created?.session || typeof created.session.prompt !== "function") {
       await created?.session?.dispose?.();
-      throw Object.assign(new Error("Pi 会话创建失败，飞书助手无法处理消息。"), {
-        code: "pi-session-unavailable",
-      });
+      throw Object.assign(
+        new Error("Pi 会话创建失败，飞书助手无法处理消息。"),
+        {
+          code: "pi-session-unavailable",
+        },
+      );
     }
     const entry = {
       folder,
@@ -139,10 +161,20 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
     return entry;
   }
 
-  const runner = async ({ folder, sessionFile, text, signal, confirm, inbound }) => {
+  const runner = async ({
+    folder,
+    sessionFile,
+    text,
+    signal,
+    confirm,
+    inbound,
+  }) => {
     const key = inbound?.key ?? folder;
     const entry = await sessionFor(key, folder, sessionFile);
-    const restore = interceptToolCalls(entry.session, confirm, inbound, { folder, secrets });
+    const restore = interceptToolCalls(entry.session, confirm, inbound, {
+      folder,
+      secrets,
+    });
     const onAbort = () => entry.session.abort?.();
     signal?.addEventListener("abort", onAbort, { once: true });
     try {

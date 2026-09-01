@@ -25,30 +25,37 @@ function fakeTransport({ ready = true } = {}) {
     },
     async send(payload) {
       sent.push(payload);
-    }
+    },
   };
 }
 
 test("WS not ready must not become online", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-ws-"));
   const store = createStore(home);
-  await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
   await assert.rejects(
-    () => runAssistant({
-      home,
-      store,
-      transport: fakeTransport({ ready: false }),
-      runPrompt: async () => ({ text: "unused" }),
-      handleSignals: false,
-    }),
-    (error) => error.code === "ws-not-ready"
+    () =>
+      runAssistant({
+        home,
+        store,
+        transport: fakeTransport({ ready: false }),
+        runPrompt: async () => ({ text: "unused" }),
+        handleSignals: false,
+      }),
+    (error) => error.code === "ws-not-ready",
   );
 });
 
 test("ready transport is online and routes inbound", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-on-"));
   const store = createStore(home);
-  await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
   const transport = fakeTransport();
   const runtime = await runAssistant({
     home,
@@ -64,8 +71,8 @@ test("ready transport is online and routes inbound", async () => {
       chat_id: "oc_dm",
       chat_type: "p2p",
       message_type: "text",
-      content: JSON.stringify({ text: "在吗" })
-    }
+      content: JSON.stringify({ text: "在吗" }),
+    },
   });
   assert.equal(result.action, "need-folder");
   assert.equal(transport.sent.length, 1);
@@ -82,7 +89,7 @@ test("start requires binding; stop disables autostart; shutdown does not stop as
     },
     uninstall: async () => {
       enabled = false;
-    }
+    },
   });
   const control = createAssistantControl(home, {
     autostart,
@@ -96,10 +103,16 @@ test("start requires binding; stop disables autostart; shutdown does not stop as
         runPrompt: async () => ({ text: "unused" }),
         handleSignals: false,
       });
-    }
+    },
   });
-  await assert.rejects(() => control.start(), (error) => error.code === "not-configured");
-  await control.store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  await assert.rejects(
+    () => control.start(),
+    (error) => error.code === "not-configured",
+  );
+  await control.store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
   await control.start();
   assert.equal((await control.snapshot()).presence, "online");
   assert.equal(enabled, true);
@@ -111,18 +124,24 @@ test("start requires binding; stop disables autostart; shutdown does not stop as
 test("SDK startup failure is visible and releases the process lock before transport start", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-sdk-"));
   const store = createStore(home);
-  await store.bindBot({ appId: "cli_abcdefghijklmn", appSecret: "super-secret-value" });
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
   const transport = fakeTransport();
   await assert.rejects(
-    () => runAssistant({
-      home,
-      store,
-      transport,
-      loadSdk: async () => {
-        throw Object.assign(new Error("Pi SDK missing"), { code: "pi-sdk-missing" });
-      },
-      handleSignals: false,
-    }),
+    () =>
+      runAssistant({
+        home,
+        store,
+        transport,
+        loadSdk: async () => {
+          throw Object.assign(new Error("Pi SDK missing"), {
+            code: "pi-sdk-missing",
+          });
+        },
+        handleSignals: false,
+      }),
     (error) => error.code === "pi-sdk-missing",
   );
   assert.equal(transport.started, false);
@@ -130,14 +149,23 @@ test("SDK startup failure is visible and releases the process lock before transp
 });
 
 test("attach pauses assistant writes when folders match", () => {
-  const ownership = { released: false, releaseToWindow() { this.released = true; } };
+  const ownership = {
+    released: false,
+    releaseToWindow() {
+      this.released = true;
+    },
+  };
   assert.equal(attachWithOwnership(undefined, "/tmp/a").code, "unknown-chat");
-  const ok = attachWithOwnership({
-    key: "p2p:a",
-    title: "张三",
-    folder: "/tmp/a",
-    sessionFile: "/tmp/a.jsonl"
-  }, "/tmp/a", ownership);
+  const ok = attachWithOwnership(
+    {
+      key: "p2p:a",
+      title: "张三",
+      folder: "/tmp/a",
+      sessionFile: "/tmp/a.jsonl",
+    },
+    "/tmp/a",
+    ownership,
+  );
   assert.equal(ok.ok, true);
   assert.equal(ownership.released, true);
   assert.match(ok.message, /暂停写入/);

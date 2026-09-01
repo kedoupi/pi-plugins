@@ -26,7 +26,8 @@ async function readOwner(path) {
   try {
     const raw = JSON.parse(await readFile(path, "utf8"));
     if (!raw || typeof raw !== "object") return null;
-    if (!Number.isInteger(raw.pid) || typeof raw.status !== "string") return null;
+    if (!Number.isInteger(raw.pid) || typeof raw.status !== "string")
+      return null;
     return raw;
   } catch (error) {
     if (error.code === "ENOENT") return null;
@@ -39,7 +40,7 @@ async function writeOwnerExclusive(path, owner) {
   await writeFile(path, `${JSON.stringify(owner, null, 2)}\n`, {
     encoding: "utf8",
     mode: 0o600,
-    flag: "wx"
+    flag: "wx",
   });
 }
 
@@ -65,16 +66,29 @@ export function createLock(home = defaultHome()) {
       return owner;
     },
 
-    async acquire({ pid = process.pid, appId, isAlive = pidIsAlive, now = Date.now } = {}) {
+    async acquire({
+      pid = process.pid,
+      appId,
+      isAlive = pidIsAlive,
+      now = Date.now,
+    } = {}) {
       return withFileLock(guardPath, async () => {
         const current = await readOwner(path);
         if (current) {
-          if (heldToken && current.token === heldToken && current.pid === heldPid) return current;
+          if (
+            heldToken &&
+            current.token === heldToken &&
+            current.pid === heldPid
+          )
+            return current;
           if (isAlive(current.pid)) {
-            throw Object.assign(new Error(`assistant already running as pid ${current.pid}`), {
-              code: "assistant-busy",
-              owner: current
-            });
+            throw Object.assign(
+              new Error(`assistant already running as pid ${current.pid}`),
+              {
+                code: "assistant-busy",
+                owner: current,
+              },
+            );
           }
           await rm(path, { force: true });
         }
@@ -87,7 +101,7 @@ export function createLock(home = defaultHome()) {
           token,
           status: "starting",
           startedAt: timestamp,
-          heartbeatAt: timestamp
+          heartbeatAt: timestamp,
         };
         await writeOwnerExclusive(path, owner);
         heldToken = token;
@@ -99,10 +113,21 @@ export function createLock(home = defaultHome()) {
     async heartbeat(status = "online") {
       return withFileLock(guardPath, async () => {
         const current = await readOwner(path);
-        if (!heldToken || !current || current.pid !== heldPid || current.token !== heldToken) {
-          throw Object.assign(new Error("assistant lock lost"), { code: "lock-lost" });
+        if (
+          !heldToken ||
+          !current ||
+          current.pid !== heldPid ||
+          current.token !== heldToken
+        ) {
+          throw Object.assign(new Error("assistant lock lost"), {
+            code: "lock-lost",
+          });
         }
-        const owner = { ...current, status, heartbeatAt: new Date().toISOString() };
+        const owner = {
+          ...current,
+          status,
+          heartbeatAt: new Date().toISOString(),
+        };
         await atomicWriteJson(path, owner);
         return owner;
       });
@@ -114,7 +139,8 @@ export function createLock(home = defaultHome()) {
         if (!current) return null;
         const targetPid = pid ?? heldPid ?? process.pid;
         if (current.pid !== targetPid) return current;
-        if (pid === undefined && heldToken && current.token !== heldToken) return current;
+        if (pid === undefined && heldToken && current.token !== heldToken)
+          return current;
         await rm(path, { force: true });
         if (current.token === heldToken) {
           heldToken = null;
@@ -122,6 +148,6 @@ export function createLock(home = defaultHome()) {
         }
         return null;
       });
-    }
+    },
   };
 }

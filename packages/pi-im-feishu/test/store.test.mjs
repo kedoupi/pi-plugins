@@ -10,7 +10,7 @@ const binding = {
   appSecret: "secret-value",
   domain: "feishu",
   boundVia: "manual",
-  botOpenId: "ou_bot"
+  botOpenId: "ou_bot",
 };
 
 async function temporaryHome(label) {
@@ -42,7 +42,7 @@ test("creates secrets as 0600 without a permissive window", async () => {
   const store = createStore(home, {
     afterSecretWrite: async () => {
       observedMode = (await stat(store.secretFile)).mode & 0o777;
-    }
+    },
   });
   await store.bindBot(binding);
   assert.equal(observedMode, 0o600);
@@ -54,13 +54,17 @@ test("never loads mixed credentials after a partial binding write", async () => 
   const store = createStore(home, {
     afterSecretWrite: async () => {
       throw new Error("crash");
-    }
+    },
   });
-  await assert.rejects(() => store.bindBot({
-    ...binding,
-    appId: "cli_fedcba0987654321",
-    appSecret: "replacement-secret"
-  }), /crash/);
+  await assert.rejects(
+    () =>
+      store.bindBot({
+        ...binding,
+        appId: "cli_fedcba0987654321",
+        appSecret: "replacement-secret",
+      }),
+    /crash/,
+  );
   assert.equal(await store.loadCredentials(), null);
 });
 
@@ -70,16 +74,22 @@ test("does not lose concurrent chat updates from separate stores", async () => {
   const b = createStore(home);
   await Promise.all([
     a.upsertChat("p2p:a", { folder: "/tmp/a" }),
-    b.upsertChat("p2p:b", { folder: "/tmp/b" })
+    b.upsertChat("p2p:b", { folder: "/tmp/b" }),
   ]);
   const status = await a.status();
-  assert.deepEqual(status.chats.map((chat) => chat.key).sort(), ["p2p:a", "p2p:b"]);
+  assert.deepEqual(status.chats.map((chat) => chat.key).sort(), [
+    "p2p:a",
+    "p2p:b",
+  ]);
 });
 
 test("updateChat replaces one chat under the shared mutation lock", async () => {
   const store = createStore(await temporaryHome("update-chat"));
   await store.upsertChat("p2p:a", { folder: "/tmp/a", count: 1 });
-  const updated = await store.updateChat("p2p:a", (current) => ({ ...current, count: current.count + 1 }));
+  const updated = await store.updateChat("p2p:a", (current) => ({
+    ...current,
+    count: current.count + 1,
+  }));
   assert.equal(updated.count, 2);
   assert.equal((await store.getChat("p2p:a")).count, 2);
 });

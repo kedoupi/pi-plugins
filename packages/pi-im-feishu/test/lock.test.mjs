@@ -15,8 +15,9 @@ test("second acquirer is busy while the first pid is alive", async () => {
   const lock = createLock(home);
   await lock.acquire({ pid: process.pid, appId: "cli_test" });
   await assert.rejects(
-    () => createLock(home).acquire({ pid: process.pid + 1, isAlive: () => true }),
-    (error) => error.code === "assistant-busy"
+    () =>
+      createLock(home).acquire({ pid: process.pid + 1, isAlive: () => true }),
+    (error) => error.code === "assistant-busy",
   );
   await lock.release();
 });
@@ -27,7 +28,7 @@ test("stale lock from a dead pid can be taken over", async () => {
   const owner = await createLock(home).acquire({
     pid: process.pid,
     appId: "cli_test",
-    isAlive: (pid) => pid === process.pid
+    isAlive: (pid) => pid === process.pid,
   });
   assert.equal(owner.pid, process.pid);
 });
@@ -38,10 +39,16 @@ test("allows only one concurrent assistant acquire", async () => {
   const b = createLock(home);
   const results = await Promise.allSettled([
     a.acquire({ pid: 1001, appId: "cli_a", isAlive: () => true }),
-    b.acquire({ pid: 1002, appId: "cli_a", isAlive: () => true })
+    b.acquire({ pid: 1002, appId: "cli_a", isAlive: () => true }),
   ]);
-  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
-  assert.equal(results.filter((result) => result.status === "rejected")[0].reason.code, "assistant-busy");
+  assert.equal(
+    results.filter((result) => result.status === "fulfilled").length,
+    1,
+  );
+  assert.equal(
+    results.filter((result) => result.status === "rejected")[0].reason.code,
+    "assistant-busy",
+  );
 });
 
 test("does not recover a stale heartbeat while its pid is alive", async () => {
@@ -49,10 +56,18 @@ test("does not recover a stale heartbeat while its pid is alive", async () => {
   const first = createLock(home);
   await first.acquire({ pid: 1001, appId: "cli_a", isAlive: () => true });
   const owner = JSON.parse(await readFile(first.path, "utf8"));
-  await writeFile(first.path, `${JSON.stringify({ ...owner, heartbeatAt: "2000-01-01T00:00:00.000Z" })}\n`);
+  await writeFile(
+    first.path,
+    `${JSON.stringify({ ...owner, heartbeatAt: "2000-01-01T00:00:00.000Z" })}\n`,
+  );
   await assert.rejects(
-    () => createLock(home).acquire({ pid: 1002, appId: "cli_a", isAlive: () => true }),
-    (error) => error.code === "assistant-busy"
+    () =>
+      createLock(home).acquire({
+        pid: 1002,
+        appId: "cli_a",
+        isAlive: () => true,
+      }),
+    (error) => error.code === "assistant-busy",
   );
 });
 
@@ -66,38 +81,48 @@ test("a heartbeat never revives a replaced lock", async () => {
     token: "replacement-token",
     status: "starting",
     startedAt: new Date().toISOString(),
-    heartbeatAt: new Date().toISOString()
+    heartbeatAt: new Date().toISOString(),
   };
   await writeFile(lock.path, `${JSON.stringify(replacement)}\n`);
-  await assert.rejects(() => lock.heartbeat("online"), (error) => error.code === "lock-lost");
+  await assert.rejects(
+    () => lock.heartbeat("online"),
+    (error) => error.code === "lock-lost",
+  );
   assert.deepEqual(JSON.parse(await readFile(lock.path, "utf8")), replacement);
 });
 
 test("file locks reap only dead stale owners and clean up after callbacks", async () => {
   const lockDir = join(await temporaryHome("file-lock"), "mutation.lock");
   await mkdir(lockDir);
-  await writeFile(join(lockDir, "owner.json"), JSON.stringify({
-    pid: 1001,
-    createdAt: "2000-01-01T00:00:00.000Z",
-    token: "stale-token"
-  }));
+  await writeFile(
+    join(lockDir, "owner.json"),
+    JSON.stringify({
+      pid: 1001,
+      createdAt: "2000-01-01T00:00:00.000Z",
+      token: "stale-token",
+    }),
+  );
 
   await assert.rejects(
-    () => withFileLock(lockDir, async () => {}, {
-      timeoutMs: 0,
-      staleMs: 1,
-      isAlive: () => true,
-      now: () => Date.parse("2026-09-01T00:00:00.000Z")
-    }),
-    (error) => error.code === "lock-timeout"
+    () =>
+      withFileLock(lockDir, async () => {}, {
+        timeoutMs: 0,
+        staleMs: 1,
+        isAlive: () => true,
+        now: () => Date.parse("2026-09-01T00:00:00.000Z"),
+      }),
+    (error) => error.code === "lock-timeout",
   );
 
   const result = await withFileLock(lockDir, async () => "done", {
     timeoutMs: 0,
     staleMs: 1,
     isAlive: () => false,
-    now: () => Date.parse("2026-09-01T00:00:00.000Z")
+    now: () => Date.parse("2026-09-01T00:00:00.000Z"),
   });
   assert.equal(result, "done");
-  await assert.rejects(() => access(lockDir), (error) => error.code === "ENOENT");
+  await assert.rejects(
+    () => access(lockDir),
+    (error) => error.code === "ENOENT",
+  );
 });

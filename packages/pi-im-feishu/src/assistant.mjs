@@ -26,7 +26,9 @@ export async function runAssistant({
 } = {}) {
   const credentials = await store.loadCredentials();
   if (!credentials) {
-    throw Object.assign(new Error("这台电脑还没有绑定飞书。"), { code: "not-configured" });
+    throw Object.assign(new Error("这台电脑还没有绑定飞书。"), {
+      code: "not-configured",
+    });
   }
 
   await lock.acquire({ appId: credentials.appId });
@@ -63,13 +65,18 @@ export async function runAssistant({
       promptRunner = createRunner(pi, { secrets: [credentials.appSecret] });
     }
     if (typeof promptRunner !== "function") {
-      throw Object.assign(new Error("Pi 会话运行器不可用，飞书助手无法上线。"), {
-        code: "pi-session-unavailable",
-      });
+      throw Object.assign(
+        new Error("Pi 会话运行器不可用，飞书助手无法上线。"),
+        {
+          code: "pi-session-unavailable",
+        },
+      );
     }
 
     const ownership = createOwnership();
-    const confirmWait = createConfirmWait((payload) => activeTransport?.send?.(payload));
+    const confirmWait = createConfirmWait((payload) =>
+      activeTransport?.send?.(payload),
+    );
     const worker = createWork({
       runPrompt: promptRunner,
       confirm: confirm ?? ((request) => confirmWait.ask(request)),
@@ -80,7 +87,9 @@ export async function runAssistant({
       onMessage: (inbound) => confirmWait.take(inbound.key, inbound.text),
       work: async (payload) => {
         if (!ownership.canAssistantWrite(payload.inbound.key)) {
-          return { text: "这条对话正在电脑窗口里打开，飞书侧暂停改代码。关掉窗口后再说。" };
+          return {
+            text: "这条对话正在电脑窗口里打开，飞书侧暂停改代码。关掉窗口后再说。",
+          };
         }
         if (payload.inbound.files?.length && payload.chat.folder) {
           await stageInboundFiles(payload.chat.folder, payload.inbound.files, {
@@ -88,7 +97,11 @@ export async function runAssistant({
           });
         }
         const result = await worker.work(payload);
-        if (result?.patch && !payload.chat.sessionFile && result.patch.sessionFile === null) {
+        if (
+          result?.patch &&
+          !payload.chat.sessionFile &&
+          result.patch.sessionFile === null
+        ) {
           return { ...result, text: result.text };
         }
         return result;
@@ -121,13 +134,17 @@ export async function runAssistant({
     }
 
     await activeTransport.start?.();
-    const ready = typeof activeTransport.isReady === "function"
-      ? activeTransport.isReady()
-      : true;
+    const ready =
+      typeof activeTransport.isReady === "function"
+        ? activeTransport.isReady()
+        : true;
     if (!ready) {
-      throw Object.assign(new Error("飞书长连接未接通，不能显示在线。可能被其它客户端占用。"), {
-        code: "ws-not-ready",
-      });
+      throw Object.assign(
+        new Error("飞书长连接未接通，不能显示在线。可能被其它客户端占用。"),
+        {
+          code: "ws-not-ready",
+        },
+      );
     }
 
     await lock.heartbeat("online");

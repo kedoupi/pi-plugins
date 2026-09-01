@@ -9,7 +9,10 @@ import {
   loadPiSdk,
 } from "../src/pi-session.mjs";
 
-const packageJson = join(dirname(fileURLToPath(import.meta.url)), "../package.json");
+const packageJson = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../package.json",
+);
 const tools = ["read", "grep", "find", "ls", "edit", "write", "bash"];
 
 function fakePi() {
@@ -39,7 +42,9 @@ function fakePi() {
     pi.sessionOptions = options;
     const sequence = pi.sessions.length + 1;
     const session = {
-      sessionFile: options.sessionManager.sessionFile ?? `/workspace/session-${sequence}.jsonl`,
+      sessionFile:
+        options.sessionManager.sessionFile ??
+        `/workspace/session-${sequence}.jsonl`,
       messages: [],
       tools: [],
       disposed: false,
@@ -67,7 +72,10 @@ const message = {
 test("does not treat the Pi SDK peer as optional", async () => {
   const pkg = JSON.parse(await readFile(packageJson, "utf8"));
   assert.equal(pkg.peerDependencies["@earendil-works/pi-coding-agent"], "*");
-  assert.equal(pkg.peerDependenciesMeta?.["@earendil-works/pi-coding-agent"], undefined);
+  assert.equal(
+    pkg.peerDependenciesMeta?.["@earendil-works/pi-coding-agent"],
+    undefined,
+  );
   const sdk = await loadPiSdk();
   assert.equal(typeof sdk.createAgentSession, "function");
 });

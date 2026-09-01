@@ -24,7 +24,13 @@ test("confirms overwrite using the real write schema", async () => {
 test("allows a new in-workspace file and blocks path traversal", async () => {
   const folder = await workspace();
   assert.equal(
-    (await classifyToolCall("write", { path: "new.txt", content: "x" }, { folder })).confirm,
+    (
+      await classifyToolCall(
+        "write",
+        { path: "new.txt", content: "x" },
+        { folder },
+      )
+    ).confirm,
     false,
   );
   assert.equal(
@@ -38,7 +44,11 @@ test("blocks file access through a symlinked workspace ancestor", async () => {
   const outside = await workspace();
   await mkdir(join(outside, "nested"));
   await symlink(join(outside, "nested"), join(folder, "escape"));
-  const decision = await classifyToolCall("write", { path: "escape/new.txt", content: "x" }, { folder });
+  const decision = await classifyToolCall(
+    "write",
+    { path: "escape/new.txt", content: "x" },
+    { folder },
+  );
   assert.equal(decision.blocked, true);
 });
 
@@ -55,7 +65,12 @@ test("always confirms edits inside the workspace", async () => {
 
 test("only clearly read-only shell commands are automatic", async () => {
   const folder = await workspace();
-  for (const command of ["pwd", "git status --short", "ls src", "grep needle README.md"]) {
+  for (const command of [
+    "pwd",
+    "git status --short",
+    "ls src",
+    "grep needle README.md",
+  ]) {
     assert.equal(
       (await classifyToolCall("bash", { command }, { folder })).confirm,
       false,
@@ -97,6 +112,14 @@ test("redacts configured and common secrets from confirmation details", async ()
   );
   assert.equal(decision.confirm, true);
   assert.doesNotMatch(decision.detail, new RegExp(appSecret));
-  assert.equal(redactSensitive({ appSecret, password: "other-secret" }, [appSecret]).includes(appSecret), false);
-  assert.match(redactSensitive("Authorization: Bearer abcdef123456", []), /\[REDACTED\]/);
+  assert.equal(
+    redactSensitive({ appSecret, password: "other-secret" }, [
+      appSecret,
+    ]).includes(appSecret),
+    false,
+  );
+  assert.match(
+    redactSensitive("Authorization: Bearer abcdef123456", []),
+    /\[REDACTED\]/,
+  );
 });

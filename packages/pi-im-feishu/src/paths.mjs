@@ -19,8 +19,16 @@ export function secretsPath(home) {
   return join(home, "secrets.json");
 }
 
+export function storeLockPath(home) {
+  return join(home, "config.lock");
+}
+
 export function lockPath(home) {
   return join(home, "assistant.lock");
+}
+
+export function lockGuardPath(home) {
+  return join(home, "assistant.lock.guard");
 }
 
 export function logPath(home) {

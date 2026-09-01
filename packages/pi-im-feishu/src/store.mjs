@@ -1,6 +1,9 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute } from "node:path";
-import { configPath, defaultHome, secretsPath } from "./paths.mjs";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { isAbsolute } from "node:path";
+import { atomicWriteJson } from "./atomic-json.mjs";
+import { withFileLock } from "./file-lock.mjs";
+import { configPath, defaultHome, secretsPath, storeLockPath } from "./paths.mjs";
 
 export const DOMAINS = new Set(["feishu", "lark"]);
 
@@ -24,10 +27,8 @@ export async function readJson(path, fallback) {
   }
 }
 
-export async function writeJson(path, value, mode) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  if (mode !== undefined) await chmod(path, mode);
+export async function writeJson(path, value, mode = 0o600) {
+  await atomicWriteJson(path, value, { mode });
 }
 
 export function publicBot(bot) {
@@ -39,7 +40,9 @@ export function publicBot(bot) {
   return {
     domain: bot.domain,
     appIdMasked,
-    boundVia: bot.boundVia ?? null
+    boundVia: bot.boundVia ?? null,
+    bindingId: bot.bindingId ?? null,
+    botOpenId: bot.botOpenId ?? null
   };
 }
 
@@ -91,9 +94,10 @@ export function titleForChat(key, fallback) {
   return "群";
 }
 
-export function createStore(home = defaultHome()) {
+export function createStore(home = defaultHome(), hooks = {}) {
   const configFile = configPath(home);
   const secretFile = secretsPath(home);
+  const mutationLock = storeLockPath(home);
 
   async function loadConfig() {
     const raw = await readJson(configFile, emptyConfig());
@@ -114,7 +118,16 @@ export function createStore(home = defaultHome()) {
     });
   }
 
-  return {
+  async function mutateConfig(fn) {
+    return withFileLock(mutationLock, async () => {
+      const config = await loadConfig();
+      const result = await fn(config);
+      await saveConfig(config);
+      return result;
+    });
+  }
+
+  const store = {
     home,
     configFile,
     secretFile,
@@ -140,21 +153,28 @@ export function createStore(home = defaultHome()) {
       };
     },
 
-    async bindBot({ appId, appSecret, domain = "feishu", boundVia = "manual" }) {
+    async bindBot({ appId, appSecret, domain = "feishu", boundVia = "manual", botOpenId }) {
       const errors = validateBinding({ appId, appSecret, domain });
       if (errors.length) {
         throw Object.assign(new Error(errors.join("; ")), { code: "invalid-binding" });
       }
-      const config = await loadConfig();
-      config.bot = {
-        appId: appId.trim(),
-        domain,
-        boundVia
-      };
-      config.stopped = false;
-      await saveConfig(config);
-      await writeJson(secretFile, { appSecret: appSecret.trim() }, 0o600);
-      return publicBot(config.bot);
+      return withFileLock(mutationLock, async () => {
+        const config = await loadConfig();
+        const bindingId = randomUUID();
+        const bot = {
+          appId: appId.trim(),
+          domain,
+          boundVia,
+          bindingId,
+          ...(nonEmpty(botOpenId) ? { botOpenId: botOpenId.trim() } : {})
+        };
+        await writeJson(secretFile, { appSecret: appSecret.trim(), bindingId }, 0o600);
+        await hooks.afterSecretWrite?.();
+        config.bot = bot;
+        config.stopped = false;
+        await saveConfig(config);
+        return publicBot(bot);
+      });
     },
 
     async loadSecrets() {
@@ -165,17 +185,17 @@ export function createStore(home = defaultHome()) {
 
     async loadCredentials() {
       const config = await loadConfig();
-      if (!config.bot) return null;
-      const appSecret = await this.loadSecrets();
-      if (!appSecret) return null;
-      return { ...config.bot, appSecret };
+      if (!config.bot || !nonEmpty(config.bot.bindingId)) return null;
+      const secrets = await readJson(secretFile, null);
+      if (!nonEmpty(secrets?.appSecret) || secrets.bindingId !== config.bot.bindingId) return null;
+      return { ...config.bot, appSecret: secrets.appSecret };
     },
 
     async setStopped(stopped) {
-      const config = await loadConfig();
-      config.stopped = stopped === true;
-      await saveConfig(config);
-      return config.stopped;
+      return mutateConfig((config) => {
+        config.stopped = stopped === true;
+        return config.stopped;
+      });
     },
 
     async getChat(key) {
@@ -183,27 +203,36 @@ export function createStore(home = defaultHome()) {
       return config.chats[key] ?? null;
     },
 
-    async upsertChat(key, patch) {
+    async updateChat(key, updater) {
       if (!parseChatKey(key)) {
         throw Object.assign(new Error(`invalid chat key: ${key}`), { code: "invalid-chat" });
       }
+      return mutateConfig(async (config) => {
+        const replacement = await updater(config.chats[key] ?? null);
+        if (!replacement || typeof replacement !== "object" || Array.isArray(replacement)) {
+          throw Object.assign(new Error("chat updater must return a chat record"), { code: "invalid-chat" });
+        }
+        config.chats[key] = replacement;
+        return replacement;
+      });
+    },
+
+    async upsertChat(key, patch) {
       if (patch.folder !== undefined) {
         const folderError = validateFolder(patch.folder);
         if (folderError) throw Object.assign(new Error(folderError), { code: "invalid-folder" });
       }
-      const config = await loadConfig();
-      const current = config.chats[key] ?? {};
-      config.chats[key] = {
-        ...current,
+      return this.updateChat(key, (current) => ({
+        ...(current ?? {}),
         ...patch,
         updatedAt: new Date().toISOString()
-      };
-      await saveConfig(config);
-      return config.chats[key];
+      }));
     },
 
     async bindFolder(key, folder) {
       return this.upsertChat(key, { folder });
     }
   };
+
+  return store;
 }

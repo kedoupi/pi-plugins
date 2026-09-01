@@ -164,7 +164,9 @@ export async function validateOutboundFile(folder, path) {
   }
   return {
     path: actual,
-    kind: IMAGE_EXTENSIONS.has(extname(actual).toLowerCase()) ? "image" : "file",
+    kind: IMAGE_EXTENSIONS.has(extname(actual).toLowerCase())
+      ? "image"
+      : "file",
   };
 }
 

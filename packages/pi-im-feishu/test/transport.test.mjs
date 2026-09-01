@@ -123,7 +123,9 @@ test("uploads images through image.create and replies inside a topic", async () 
     inbound: topicInbound,
     files: [{ kind: "image", path }],
   });
-  assert.deepEqual(lark.imageUploads, [{ data: { image: Buffer.from("png") } }]);
+  assert.deepEqual(lark.imageUploads, [
+    { data: { image: Buffer.from("png") } },
+  ]);
   assert.equal(lark.fileUploads.length, 0);
   assert.deepEqual(lark.replyCalls[0], {
     path: { message_id: topicInbound.messageId },

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { open, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createAutostart } from "./autostart.mjs";
+import { createBind } from "./bind.mjs";
 import { macosAutostart } from "./macos-autostart.mjs";
 import { createOwnershipCoordinator } from "./ownership.mjs";
 import { createLock, onlineLabel } from "./lock.mjs";
@@ -12,7 +12,7 @@ import {
   HOME_ENV,
   logPath,
 } from "./paths.mjs";
-import { chatKey, createStore } from "./store.mjs";
+import { createStore } from "./store.mjs";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,13 +20,48 @@ function sleep(ms) {
 
 export function createAssistantControl(
   home = defaultHome(),
-  { autostart, runner, pid = process.pid } = {},
+  {
+    autostart,
+    runner,
+    pid = process.pid,
+    lock: providedLock,
+    store: providedStore,
+    bind,
+    processKill = process.kill,
+  } = {},
 ) {
-  const lock = createLock(home);
-  const store = createStore(home);
+  const lock = providedLock ?? createLock(home);
+  const store = providedStore ?? createStore(home);
+  const binding = bind ?? createBind(home);
   const auto = autostart ?? macosAutostart(home);
   const ownership = createOwnershipCoordinator({ store, pid });
   let inProcess = null;
+
+  async function recordError(error, secrets = []) {
+    let message = error instanceof Error ? error.message : String(error);
+    for (const secret of secrets) {
+      if (typeof secret === "string" && secret) {
+        message = message.replaceAll(secret, "[已隐藏]");
+      }
+    }
+    return store.setLastError({
+      code:
+        typeof error?.code === "string" && error.code
+          ? error.code
+          : "unknown",
+      message,
+    });
+  }
+
+  async function resultStatus(autostartStatus, extra = {}) {
+    const snapshot = await control.snapshot();
+    return {
+      ...extra,
+      status: snapshot.presence,
+      autostart: autostartStatus,
+      lastError: snapshot.lastError,
+    };
+  }
 
   async function waitForOnline(timeoutMs = 4_000) {
     const deadline = Date.now() + timeoutMs;
@@ -38,7 +73,7 @@ export function createAssistantControl(
     return lock.read();
   }
 
-  return {
+  const control = {
     home,
     store,
     lock,
@@ -144,97 +179,165 @@ export function createAssistantControl(
       const [status, owner] = await Promise.all([store.status(), lock.read()]);
       return {
         ...status,
-        presence: onlineLabel(owner),
+        presence: status.configured ? onlineLabel(owner) : "unbound",
         assistant: owner,
       };
     },
 
-    async start() {
+    async start({ timeoutMs = 4_000 } = {}) {
       const credentials = await store.loadCredentials();
       if (!credentials) {
-        throw Object.assign(new Error("请先绑定飞书。"), {
+        const error = Object.assign(new Error("请先绑定飞书。"), {
           code: "not-configured",
         });
+        await recordError(error);
+        throw error;
       }
       const current = await lock.read();
       if (current?.status === "online") {
-        return { started: false, reason: "already-running", owner: current };
-      }
-      await store.setStopped(false);
-      if (typeof runner === "function") {
-        inProcess = await runner({ home, store, lock });
-      } else {
-        const logFile = await open(logPath(home), "a");
-        try {
-          const child = spawn(
-            process.execPath,
-            [fileURLToPath(assistantScriptPath())],
-            {
-              detached: true,
-              stdio: ["ignore", logFile.fd, logFile.fd],
-              env: {
-                ...process.env,
-                [HOME_ENV]: home,
-                PI_IM_FEISHU_ASSISTANT: "1",
-              },
-            },
-          );
-          child.unref();
-        } finally {
-          await logFile.close();
-        }
-      }
-      const owner = await waitForOnline();
-      if (owner?.status !== "online") {
-        throw Object.assign(
-          new Error("飞书没有上线。请看助手日志；可能被其它客户端占用。"),
-          {
-            code: "not-online",
-            owner,
-          },
+        return resultStatus(
+          { enabled: null, reason: "unchanged" },
+          { started: false, reason: "already-running", owner: current },
         );
       }
+      await store.setStopped(false);
+      let owner;
       try {
-        await auto.enable();
-      } catch {}
-      return { started: true, owner };
+        if (typeof runner === "function") {
+          inProcess = await runner({ home, store, lock });
+        } else {
+          const logFile = await open(logPath(home), "a");
+          try {
+            const child = spawn(
+              process.execPath,
+              [fileURLToPath(assistantScriptPath())],
+              {
+                detached: true,
+                stdio: ["ignore", logFile.fd, logFile.fd],
+                env: {
+                  ...process.env,
+                  [HOME_ENV]: home,
+                  PI_IM_FEISHU_ASSISTANT: "1",
+                },
+              },
+            );
+            child.unref();
+          } finally {
+            await logFile.close();
+          }
+        }
+        owner = await waitForOnline(timeoutMs);
+        if (owner?.status !== "online") {
+          throw Object.assign(
+            new Error("飞书没有上线。请看助手日志；可能被其它客户端占用。"),
+            { code: "not-online", owner },
+          );
+        }
+      } catch (error) {
+        const lastError = await recordError(error, [credentials.appSecret]);
+        Object.assign(error, { status: "offline", lastError });
+        throw error;
+      }
+
+      let autostartStatus;
+      try {
+        autostartStatus = await auto.enable();
+        await store.setLastError(null);
+      } catch (error) {
+        const lastError = await recordError(error, [credentials.appSecret]);
+        return {
+          started: true,
+          owner,
+          status: "online",
+          autostart: { enabled: false, error: lastError },
+          lastError,
+        };
+      }
+      return resultStatus(autostartStatus, { started: true, owner });
     },
 
     async stop() {
       await store.setStopped(true);
-      await auto.disable();
+      let autostartStatus;
+      let autostartError = null;
+      try {
+        autostartStatus = await auto.disable();
+      } catch (error) {
+        autostartError = await recordError(error);
+        autostartStatus = { enabled: true, error: autostartError };
+      }
+
+      let stopped = false;
+      let reason = "already-offline";
       if (inProcess?.shutdown) {
         await inProcess.shutdown();
         inProcess = null;
-        return { stopped: true, reason: "stopped" };
+        stopped = true;
+        reason = "stopped";
+      } else {
+        const owner = await lock.read();
+        if (owner?.pid === process.pid) {
+          await lock.release(owner.pid);
+          stopped = true;
+          reason = "released-same-process";
+        } else if (owner) {
+          try {
+            processKill(owner.pid, "SIGTERM");
+            stopped = true;
+            reason = "stopped";
+          } catch {
+            await lock.release(owner.pid);
+            stopped = true;
+            reason = "reaped";
+          }
+          if (await lock.read()) {
+            const deadline = Date.now() + HEARTBEAT_MS * 2;
+            while (Date.now() < deadline && (await lock.read())) {
+              await sleep(50);
+            }
+            if (await lock.read()) {
+              try {
+                processKill(owner.pid, "SIGKILL");
+              } catch {}
+              await lock.release(owner.pid);
+              reason = "killed";
+            }
+          }
+        }
       }
-      const owner = await lock.read();
-      if (!owner) return { stopped: false, reason: "already-offline" };
-      if (owner.pid === process.pid) {
-        await lock.release(owner.pid);
-        return { stopped: true, reason: "released-same-process" };
-      }
-      try {
-        process.kill(owner.pid, "SIGTERM");
-      } catch {
-        await lock.release(owner.pid);
-        return { stopped: true, reason: "reaped" };
-      }
-      const deadline = Date.now() + HEARTBEAT_MS * 2;
-      while (Date.now() < deadline) {
-        if (!(await lock.read())) return { stopped: true, reason: "stopped" };
-        await sleep(50);
-      }
-      try {
-        process.kill(owner.pid, "SIGKILL");
-      } catch {}
-      await lock.release(owner.pid);
-      return { stopped: true, reason: "killed" };
+      return resultStatus(autostartStatus, {
+        stopped,
+        reason,
+        ...(autostartError ? { lastError: autostartError } : {}),
+      });
     },
 
-    async bindFolder(kind, chatId, folder) {
-      const key = chatKey({ kind, chatId });
+    async rebind(candidate, options = {}) {
+      let verified;
+      try {
+        verified = await binding.verify(candidate, options);
+      } catch (error) {
+        await recordError(error, [candidate?.appSecret]);
+        throw error;
+      }
+      const stopped = await control.stop();
+      try {
+        await binding.writeVerified(verified);
+      } catch (error) {
+        await recordError(error, [candidate?.appSecret]);
+        throw error;
+      }
+      const started = await control.start(options);
+      if (stopped.autostart?.error) {
+        await store.setLastError(stopped.autostart.error);
+        return { ...started, lastError: stopped.autostart.error };
+      }
+      return started;
+    },
+
+    async bindFolder(key, folder) {
       return store.bindFolder(key, folder);
     },
   };
+  return control;
 }

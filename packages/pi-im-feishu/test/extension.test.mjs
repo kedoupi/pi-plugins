@@ -7,7 +7,7 @@ import { runAssistant } from "../src/assistant.mjs";
 import { createAssistantControl } from "../src/assistant-control.mjs";
 import { createAutostart } from "../src/autostart.mjs";
 import { createBind } from "../src/bind.mjs";
-import createFeishuExtension from "../src/tui.mjs";
+import createFeishuExtension, { maskedInput } from "../src/tui.mjs";
 
 test("extension registers /feishu and does not start sockets in the factory", () => {
   const commands = [];
@@ -56,6 +56,8 @@ test("attach switches sessions only after ownership is granted", async () => {
   );
 
   const running = handler("attach p2p:a", {
+    mode: "tui",
+    hasUI: true,
     cwd: "/tmp/a",
     async switchSession(sessionFile) {
       switched.push(sessionFile);
@@ -101,6 +103,8 @@ test("attach releases its grant when switching fails", async () => {
     },
   );
   await handler("attach p2p:a", {
+    mode: "tui",
+    hasUI: true,
     cwd: "/tmp/a",
     async switchSession() {
       throw new Error("switch failed");
@@ -201,6 +205,211 @@ test("session_shutdown does not release a lease for another session", async () =
   await hooks.get("session_start")({}, context);
   await hooks.get("session_shutdown")({}, context);
   assert.equal(releases, 0);
+});
+
+test("commands with side effects refuse non-TUI contexts", async () => {
+  let handler;
+  const calls = [];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: {
+        store: { home: "/tmp/unused" },
+        async qrCandidate() {
+          calls.push("register-qr");
+        },
+      },
+      assistant: new Proxy(
+        {},
+        {
+          get(_target, name) {
+            if (name === "store") return undefined;
+            return async () => calls.push(String(name));
+          },
+        },
+      ),
+    },
+  );
+  const notifications = [];
+  const noUi = {
+    mode: "json",
+    hasUI: false,
+    cwd: "/tmp/a",
+    ui: { notify: (message) => notifications.push(message) },
+  };
+  for (const command of [
+    "setup qr",
+    "setup manual cli_123 feishu",
+    "start",
+    "stop",
+    "folder topic:chat:thread /tmp/a",
+    "attach p2p:a",
+  ]) {
+    await handler(command, noUi);
+  }
+  assert.deepEqual(calls, []);
+  assert.equal(notifications.length, 6);
+  assert.ok(notifications.every((message) => /Pi TUI/.test(message)));
+});
+
+test("masked input renders bullets and returns no secret on escape", async () => {
+  let rendered;
+  const ctx = {
+    ui: {
+      custom(factory) {
+        return new Promise((resolve) => {
+          const component = factory(
+            { requestRender() {} },
+            {},
+            {},
+            resolve,
+          );
+          component.handleInput("secret-value");
+          rendered = component.render(80).join("\n");
+          component.handleInput("\u007f");
+          component.handleInput("\r");
+        });
+      },
+    },
+  };
+  assert.equal(await maskedInput(ctx, "App Secret"), "secret-valu");
+  assert.match(rendered, /App Secret/);
+  assert.match(rendered, /••••••••••••/);
+  assert.equal(rendered.includes("secret-value"), false);
+
+  ctx.ui.custom = (factory) =>
+    new Promise((resolve) => {
+      const component = factory({ requestRender() {} }, {}, {}, resolve);
+      component.handleInput("do-not-return");
+      component.handleInput("\u001b");
+    });
+  assert.equal(await maskedInput(ctx, "App Secret"), null);
+});
+
+test("manual setup obtains the secret only from masked input and rebinds", async () => {
+  let handler;
+  const candidates = [];
+  const notifications = [];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: { store: { home: "/tmp/unused" } },
+      assistant: {
+        async rebind(candidate) {
+          candidates.push(candidate);
+          return {
+            started: true,
+            status: "online",
+            autostart: { enabled: true },
+            lastError: null,
+          };
+        },
+      },
+    },
+  );
+  await handler("setup manual cli_1234567890 lark", {
+    mode: "tui",
+    hasUI: true,
+    ui: {
+      notify: (message) => notifications.push(message),
+      custom: (factory) =>
+        new Promise((resolve) => {
+          const component = factory({ requestRender() {} }, {}, {}, resolve);
+          component.handleInput("secret-value");
+          component.handleInput("\r");
+        }),
+    },
+  });
+  assert.deepEqual(candidates, [
+    {
+      appId: "cli_1234567890",
+      appSecret: "secret-value",
+      domain: "lark",
+    },
+  ]);
+  assert.equal(notifications.join("\n").includes("secret-value"), false);
+});
+
+test("status text distinguishes all four states and shows lastError", async () => {
+  let handler;
+  const notifications = [];
+  const states = ["unbound", "starting", "online", "offline"];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: { store: { home: "/tmp/unused" } },
+      assistant: {
+        async snapshot() {
+          const presence = states.shift();
+          return {
+            presence,
+            bot: null,
+            chats: [],
+            lastError:
+              presence === "offline"
+                ? { code: "launchctl", message: "启动失败" }
+                : null,
+          };
+        },
+      },
+    },
+  );
+  for (let index = 0; index < 4; index += 1) {
+    await handler("status", {
+      mode: "json",
+      hasUI: false,
+      ui: { notify: (message) => notifications.push(message) },
+    });
+  }
+  assert.match(notifications[0], /飞书：未绑定/);
+  assert.match(notifications[1], /飞书：启动中/);
+  assert.match(notifications[2], /飞书：在线/);
+  assert.match(notifications[3], /飞书：离线/);
+  assert.match(notifications[3], /最近错误：启动失败（launchctl）/);
+});
+
+test("folder commands preserve complete topic chat keys", async () => {
+  let handler;
+  const calls = [];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: { store: { home: "/tmp/unused" } },
+      assistant: {
+        async bindFolder(...args) {
+          calls.push(args);
+        },
+      },
+    },
+  );
+  await handler("folder topic:oc_chat:om_thread /tmp/project folder", {
+    mode: "tui",
+    hasUI: true,
+    ui: { notify() {} },
+  });
+  assert.deepEqual(calls, [
+    ["topic:oc_chat:om_thread", "/tmp/project folder"],
+  ]);
 });
 
 test("session_shutdown does not stop the assistant", async () => {

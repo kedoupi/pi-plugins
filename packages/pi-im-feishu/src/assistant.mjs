@@ -24,6 +24,11 @@ export async function runAssistant({
   loadSdk = loadPiSdk,
   createRunner = createPiRunPrompt,
 } = {}) {
+  if ((await store.status()).stopped) {
+    throw Object.assign(new Error("飞书助手已停止。请在 Pi TUI 中手动启动。"), {
+      code: "stopped",
+    });
+  }
   const credentials = await store.loadCredentials();
   if (!credentials) {
     throw Object.assign(new Error("这台电脑还没有绑定飞书。"), {

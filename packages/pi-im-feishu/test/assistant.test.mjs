@@ -29,6 +29,30 @@ function fakeTransport({ ready = true } = {}) {
   };
 }
 
+test("stopped configuration refuses assistant startup before locking or transport", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-stopped-"));
+  const store = createStore(home);
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
+  await store.setStopped(true);
+  const transport = fakeTransport();
+  await assert.rejects(
+    () =>
+      runAssistant({
+        home,
+        store,
+        transport,
+        runPrompt: async () => ({ text: "unused" }),
+        handleSignals: false,
+      }),
+    (error) => error.code === "stopped",
+  );
+  assert.equal(transport.started, false);
+  assert.equal(await createLock(home).read(), null);
+});
+
 test("WS not ready must not become online", async () => {
   const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-ws-"));
   const store = createStore(home);
@@ -203,6 +227,119 @@ test("SDK startup failure is visible and releases the process lock before transp
   );
   assert.equal(transport.started, false);
   assert.equal(await createLock(home).read(), null);
+});
+
+test("stop kills the assistant even when autostart disable fails", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-stop-failure-"));
+  const store = createStore(home);
+  const owner = { pid: 4242, status: "online" };
+  const killCalls = [];
+  const lock = {
+    async read() {
+      return owner.status ? owner : null;
+    },
+    async release() {
+      owner.status = null;
+      return null;
+    },
+  };
+  const control = createAssistantControl(home, {
+    store,
+    lock,
+    autostart: {
+      async disable() {
+        throw new Error("launchctl failed");
+      },
+    },
+    processKill(pid, signal) {
+      killCalls.push([pid, signal]);
+      owner.status = null;
+    },
+  });
+  const result = await control.stop();
+  assert.deepEqual(killCalls, [[4242, "SIGTERM"]]);
+  assert.equal(result.stopped, true);
+  assert.equal(result.autostart.enabled, true);
+  assert.match(result.lastError.message, /launchctl failed/);
+  assert.equal((await store.status()).lastError.message, "launchctl failed");
+});
+
+test("snapshot reports unbound, starting, online, and offline with lastError", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-status-"));
+  const store = createStore(home);
+  let owner = null;
+  const control = createAssistantControl(home, {
+    store,
+    lock: { async read() { return owner; } },
+    autostart: createAutostart(),
+  });
+  assert.equal((await control.snapshot()).presence, "unbound");
+  await store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
+  assert.equal((await control.snapshot()).presence, "offline");
+  owner = { pid: 1, status: "starting" };
+  assert.equal((await control.snapshot()).presence, "starting");
+  owner = { pid: 1, status: "online" };
+  assert.equal((await control.snapshot()).presence, "online");
+  await store.setLastError({ code: "launchctl", message: "bootstrap failed" });
+  const snapshot = await control.snapshot();
+  assert.deepEqual(
+    { code: snapshot.lastError.code, message: snapshot.lastError.message },
+    { code: "launchctl", message: "bootstrap failed" },
+  );
+  assert.equal(typeof snapshot.lastError.at, "string");
+});
+
+test("rebind verifies, stops, writes, and starts in order", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-rebind-"));
+  const store = createStore(home);
+  await store.bindBot({
+    appId: "cli_oldabcdefghijkl",
+    appSecret: "old-secret-value",
+    botOpenId: "ou_old",
+  });
+  const order = [];
+  const binding = {
+    async verify(candidate) {
+      order.push("verify-new");
+      return { ...candidate, boundVia: "manual", botOpenId: "ou_new" };
+    },
+    async writeVerified(candidate) {
+      order.push("write-new");
+      return store.bindBot(candidate);
+    },
+  };
+  const autostart = createAutostart({
+    install: async () => {},
+    uninstall: async () => order.push("stop-old"),
+  });
+  const control = createAssistantControl(home, {
+    store,
+    bind: binding,
+    autostart,
+    runner: async ({ lock }) => {
+      order.push("start-new");
+      await lock.acquire({ appId: "cli_newabcdefghijkl" });
+      await lock.heartbeat("online");
+      return { shutdown: () => lock.release() };
+    },
+  });
+  const result = await control.rebind({
+    appId: "cli_newabcdefghijkl",
+    appSecret: "new-secret-value",
+    domain: "feishu",
+  });
+  assert.deepEqual(order, [
+    "verify-new",
+    "stop-old",
+    "write-new",
+    "start-new",
+  ]);
+  assert.equal(result.status, "online");
+  assert.equal((await store.loadCredentials()).botOpenId, "ou_new");
+  await control.stop();
 });
 
 test("attach timeout reclaims a request while the assistant is still releasing", async () => {

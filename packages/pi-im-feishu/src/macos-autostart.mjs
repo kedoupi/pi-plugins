@@ -44,30 +44,51 @@ export function launchAgentPlist(home) {
 `;
 }
 
-export function macosAutostart(home, {
-  write = writeFile,
-  remove = rm,
-  mkdirFn = mkdir,
-  platform = process.platform,
-  plistPath,
-  launchctl
-} = {}) {
+function launchctlError(action, result) {
+  const detail = String(result?.stderr ?? result?.error?.message ?? "").trim();
+  return Object.assign(
+    new Error(`launchctl ${action} failed${detail ? `: ${detail}` : ""}`),
+    { code: "launchctl-failed" },
+  );
+}
+
+export function macosAutostart(
+  home,
+  {
+    write = writeFile,
+    remove = rm,
+    mkdirFn = mkdir,
+    platform = process.platform,
+    plistPath,
+    launchctl,
+  } = {},
+) {
   if (platform !== "darwin") return createAutostart();
   const path = plistPath ?? launchAgentPath();
-  const run = launchctl ?? ((args) => spawnSync("launchctl", args, { encoding: "utf8" }));
+  const run =
+    launchctl ??
+    ((args) => spawnSync("launchctl", args, { encoding: "utf8" }));
   const domain = `gui/${process.getuid?.() ?? 501}`;
   return createAutostart({
     install: async () => {
-      await mkdirFn(join(homedir(), "Library", "LaunchAgents"), { recursive: true });
+      await mkdirFn(join(homedir(), "Library", "LaunchAgents"), {
+        recursive: true,
+      });
       await write(path, launchAgentPlist(home), "utf8");
       run(["bootout", domain, path]);
       const loaded = run(["bootstrap", domain, path]);
-      if (loaded?.status !== 0) run(["load", "-w", path]);
+      if (loaded?.status === 0) return;
+      const fallback = run(["load", "-w", path]);
+      if (fallback?.status !== 0) throw launchctlError("load", fallback);
     },
     uninstall: async () => {
-      run(["bootout", domain, path]);
-      run(["unload", "-w", path]);
+      const unloaded = run(["bootout", domain, path]);
+      if (unloaded?.status !== 0) {
+        const fallback = run(["unload", "-w", path]);
+        if (fallback?.status !== 0)
+          throw launchctlError("unload", fallback);
+      }
       await remove(path, { force: true });
-    }
+    },
   });
 }

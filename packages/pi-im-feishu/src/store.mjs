@@ -21,7 +21,19 @@ const emptyConfig = () => ({
   bot: null,
   chats: {},
   stopped: false,
+  lastError: null,
 });
+
+function durableError(error) {
+  if (!error || typeof error !== "object") return null;
+  const message = nonEmpty(error.message) ? error.message.trim() : null;
+  if (!message) return null;
+  return {
+    code: nonEmpty(error.code) ? error.code.trim() : "unknown",
+    message,
+    at: nonEmpty(error.at) ? error.at : new Date().toISOString(),
+  };
+}
 
 function nonEmpty(value) {
   return typeof value === "string" && value.trim() !== "";
@@ -127,6 +139,7 @@ export function createStore(home = defaultHome(), hooks = {}) {
       bot: raw.bot && typeof raw.bot === "object" ? raw.bot : null,
       chats: raw.chats && typeof raw.chats === "object" ? raw.chats : {},
       stopped: raw.stopped === true,
+      lastError: durableError(raw.lastError),
     };
   }
 
@@ -136,6 +149,7 @@ export function createStore(home = defaultHome(), hooks = {}) {
       bot: config.bot,
       chats: config.chats,
       stopped: config.stopped === true,
+      lastError: durableError(config.lastError),
     });
   }
 
@@ -174,6 +188,7 @@ export function createStore(home = defaultHome(), hooks = {}) {
         bot: publicBot(config.bot),
         chats,
         stopped: config.stopped === true,
+        lastError: config.lastError,
       };
     },
 
@@ -235,6 +250,13 @@ export function createStore(home = defaultHome(), hooks = {}) {
       return mutateConfig((config) => {
         config.stopped = stopped === true;
         return config.stopped;
+      });
+    },
+
+    async setLastError(error) {
+      return mutateConfig((config) => {
+        config.lastError = durableError(error);
+        return config.lastError;
       });
     },
 

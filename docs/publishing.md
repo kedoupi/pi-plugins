@@ -47,4 +47,4 @@ pi install npm:@kedoupi/<real-package-name>@1.2.2
 - 确认 GitHub 新仓库名称采用 `kedoupi/pi-plugins`。
 - 确认 npm 账号拥有或可创建 `@kedoupi` scope。
 - 为 npm Trusted Publishing 配置 GitHub 仓库与 workflow 绑定。
-- 选择首个真实第一方 Package；没有真实 Package 时不创建空 Suite 或虚假示例。
+- 选择首个真实第一方 Package；当前候选是 `@kedoupi/pi-im-feishu`，见 [产研文档](./pi-im-feishu/README.md)。文档未批准、包未 dogfood、维护者未确认前，不创建空 Suite、虚假示例或 publish workflow。

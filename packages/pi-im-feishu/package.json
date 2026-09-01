@@ -1,0 +1,43 @@
+{
+  "name": "@kedoupi/pi-im-feishu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Keep one Feishu bot online on this computer. Chat in Feishu; open Pi only to look or attach.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "feishu",
+    "lark",
+    "im"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "bin",
+    "extensions",
+    "src",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  },
+  "dependencies": {
+    "@larksuiteoapi/node-sdk": "1.73.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}

@@ -2,6 +2,8 @@
 
 本地开发采用“项目隔离测试 → 全局本地源码 dogfood → npm 正式版”两层模式。
 
+`@kedoupi/pi-im-feishu` 文档已批准，实现按 [docs/pi-im-feishu](./pi-im-feishu/README.md) 的计划推进。当前是 Task 1 骨架，未宣称在线。
+
 ## Project trust
 
 ```bash
@@ -15,20 +17,12 @@ pi
 
 ## Project-local loading
 
-foundation 阶段没有真实第一方 Package，因此提交的 `.pi/settings.json` 保持：
-
-```json
-{
-  "packages": []
-}
-```
-
-选定并创建首个真实 Package 后，再按相对路径加入对应 workspace：
+提交的 `.pi/settings.json` 通过相对路径加载骨架包：
 
 ```json
 {
   "packages": [
-    "../packages/<real-package-dir>"
+    "../packages/pi-im-feishu"
   ]
 }
 ```

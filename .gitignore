@@ -1,5 +1,6 @@
 .worktrees/
 .superpowers/
+.tmp-npm-cache/
 node_modules/
 *.tgz
 coverage/

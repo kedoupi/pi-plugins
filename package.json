@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "check": "node scripts/validate-packages.mjs && node scripts/validate-readmes.mjs && node scripts/validate-catalog.mjs && npm run catalog:check",
-    "test": "node --test scripts/*.test.mjs",
+    "test": "node --test scripts/*.test.mjs packages/*/test/*.test.mjs",
     "pack:check": "node scripts/pack-check.mjs",
     "catalog:render": "node scripts/render-catalog.mjs",
     "catalog:check": "node scripts/render-catalog.mjs --check"

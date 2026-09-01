@@ -22,7 +22,7 @@ The repository root is a private development workspace, not an installable Pi Pa
 - Documented local development, testing, publishing, and security rules.
 - Node.js 22 CI with no publishing credentials.
 
-No first-party Package is published yet; this repository does not use empty examples as installable products.
+No first-party Package is published to npm yet. `@kedoupi/pi-im-feishu` exists as a project-local skeleton under `packages/pi-im-feishu`. Docs: [docs/pi-im-feishu](./docs/pi-im-feishu/README.md).
 
 ## Curated Catalog
 
@@ -77,7 +77,7 @@ Do not commit secrets, `.env` files, private inventory, or machine-specific path
 
 ## Roadmap
 
-The next milestone starts only after selecting a real first-party Package by user-visible purpose and name. It will validate project-local loading, global dogfooding, trusted publishing, installation lifecycle behavior, and first-party suite integration from the proven Package workflow.
+`@kedoupi/pi-im-feishu` is project-local through plan Task 6. Automated tests are green. Remaining work is human install/dogfood (Task 7), then publishing. A Suite remains out of scope until that cycle is proven.
 
 Speculative demonstration Packages remain out of scope.
 

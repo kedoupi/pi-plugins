@@ -39,7 +39,7 @@ New infrastructure must follow demonstrated need. A real workflow is completed o
 
 Catalog status is an evidence ladder, not a ranking of popularity:
 
-- `community`: public metadata and bilingual documentation were researched and validated.
+- `community`: public metadata and bilingual documentation were researched and checked by repository validation.
 - `tested`: a maintainer actually installed and used the recorded version with the recorded Pi version.
 - `reviewed`: the tested Package also received focused inspection of entry points, permissions, files, network access, credentials, subprocesses, or other sensitive behavior.
 - `deprecated`: the Package is no longer recommended because its source, maintenance, accuracy, or suitability no longer meets the catalog policy.

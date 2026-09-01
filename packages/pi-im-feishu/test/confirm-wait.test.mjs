@@ -34,6 +34,19 @@ test("confirmation is consumed only from the original requester", async () => {
   assert.match(sent[0].text, /回复「确认」继续，回复「拒绝」跳过。/);
 });
 
+test("cancel rejects and removes a pending confirmation", async () => {
+  const wait = createConfirmWait(async () => {});
+  const asked = wait.ask({
+    inbound: requesterInbound,
+    kind: "bash",
+    detail: "rm x",
+  });
+  assert.equal(wait.cancel(requesterInbound.key), true);
+  assert.equal(await asked, false);
+  assert.equal(wait.take({ ...requesterInbound, text: "确认" }), null);
+  assert.equal(wait.cancel(requesterInbound.key), false);
+});
+
 test("group confirmation requires a mention and supports explicit rejection", async () => {
   const wait = createConfirmWait(async () => {});
   const inbound = {

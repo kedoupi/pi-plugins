@@ -48,13 +48,29 @@ test("parses p2p, group, and topic keys", () => {
     textEvent({
       chatType: "group",
       chatId: "oc_g",
+      threadId: "omt_thread",
       rootId: "om_root",
       text: "话题",
     }),
   );
-  assert.equal(topic.key, "topic:oc_g:om_root");
+  assert.equal(topic.key, "topic:oc_g:omt_thread");
   assert.equal(topic.rootId, "om_root");
-  assert.equal(topic.threadId, "om_root");
+  assert.equal(topic.threadId, "omt_thread");
+});
+
+test("keeps ordinary group replies in the group session", () => {
+  const reply = parseInbound(
+    textEvent({
+      chatType: "group",
+      chatId: "oc_g",
+      rootId: "om_root",
+      text: "普通回复",
+    }),
+  );
+  assert.equal(reply.key, "group:oc_g");
+  assert.equal(reply.kind, "group");
+  assert.equal(reply.rootId, "om_root");
+  assert.equal(reply.threadId, null);
 });
 
 test("rejects an arbitrary group mention without configured bot identity", () => {

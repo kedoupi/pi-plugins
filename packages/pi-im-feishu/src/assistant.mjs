@@ -92,6 +92,7 @@ export async function runAssistant({
     worker = createWork({
       runPrompt: promptRunner,
       confirm: confirm ?? ((request) => confirmWait.ask(request)),
+      cancelConfirm: (key) => confirmWait.cancel(key),
     });
     const router = createRouter({
       store,

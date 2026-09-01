@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { buffer as consumeBuffer } from "node:stream/consumers";
 import { sendOutboundFiles } from "./files.mjs";
 
 export async function loadLarkSdk() {
@@ -81,7 +82,7 @@ export function createFeishuTransport({
     let key;
     if (image) {
       const uploaded = await client.im.v1.image.create({
-        data: { image: buffer },
+        data: { image_type: "message", image: buffer },
       });
       key = uploaded?.data?.image_key ?? uploaded?.image_key;
     } else {
@@ -110,6 +111,9 @@ export function createFeishuTransport({
       path: { message_id: file.messageId, file_key: file.key },
       params: { type },
     });
+    if (typeof response?.getReadableStream === "function") {
+      return consumeBuffer(response.getReadableStream());
+    }
     if (Buffer.isBuffer(response) || response instanceof Uint8Array)
       return response;
     if (response?.data) return response.data;
@@ -169,7 +173,6 @@ export function createFeishuTransport({
           disconnected(failure);
           settleError?.(failure);
         },
-        onClose: () => disconnected(),
         onReconnecting: () => disconnected(),
         onReconnected: () => {
           ready = true;
@@ -180,7 +183,7 @@ export function createFeishuTransport({
     },
     async stop() {
       ready = false;
-      await wsClient?.stop?.();
+      await wsClient?.close?.({ force: true });
       wsClient = undefined;
     },
     async send({ inbound, chatId = inbound?.chatId, text, files } = {}) {

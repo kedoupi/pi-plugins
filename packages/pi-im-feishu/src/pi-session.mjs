@@ -60,7 +60,7 @@ export function interceptToolCalls(
   session,
   confirm,
   inbound,
-  { folder, secrets = [] } = {},
+  { folder, secrets = [], signal } = {},
 ) {
   const tools = session?.agent?.state?.tools ?? session?.tools;
   if (!Array.isArray(tools)) return () => {};
@@ -71,6 +71,7 @@ export function interceptToolCalls(
     const original = tool.execute;
     originals.push([tool, original]);
     tool.execute = async (...args) => {
+      if (signal?.aborted) return skipped("当前任务已停止，工具调用已跳过。");
       const input = args[1] && typeof args[1] === "object" ? args[1] : args[0];
       const decision = await classifyToolCall(tool.name, input ?? {}, {
         folder,
@@ -88,6 +89,7 @@ export function interceptToolCalls(
           }));
         if (!ok) return skipped("用户未确认，已跳过。");
       }
+      if (signal?.aborted) return skipped("当前任务已停止，工具调用已跳过。");
       return original.apply(tool, args);
     };
   }
@@ -120,6 +122,8 @@ function createSendFileTool(runContext) {
           detail: file.path,
         }));
       if (!confirmed) return skipped("用户未确认，文件未加入发送队列。");
+      if (current.signal?.aborted)
+        return skipped("当前任务已停止，文件未加入发送队列。");
       if (runContext.current !== current)
         return skipped("当前运行已结束，不能发送文件。");
       current.files.push(file);
@@ -218,10 +222,11 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
     const restore = interceptToolCalls(entry.session, confirm, inbound, {
       folder,
       secrets,
+      signal,
     });
     const onAbort = () => entry.session.abort?.();
     signal?.addEventListener("abort", onAbort, { once: true });
-    const current = { folder, inbound, confirm, files: [] };
+    const current = { folder, inbound, confirm, signal, files: [] };
     entry.runContext.current = current;
     try {
       await entry.session.prompt(text);

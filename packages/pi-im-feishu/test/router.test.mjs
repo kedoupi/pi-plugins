@@ -58,7 +58,30 @@ test("unbound chats ask for a folder", async () => {
     (await router.accept(event({ text: "改代码" }))).action,
     "need-folder",
   );
-  assert.match(sent[0].text, /\/feishu folder p2p oc_dm/);
+  assert.match(sent[0].text, /\/feishu folder p2p:oc_dm \/绝对路径/);
+});
+
+test("first folder bind runs from Feishu before a folder exists", async () => {
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-first-folder-")),
+  );
+  const worker = createWork({
+    runPrompt: Object.assign(async () => ({ text: "unused" }), {
+      release: async () => ({ sessionFile: null }),
+    }),
+  });
+  const sent = [];
+  const router = createRouter({
+    store,
+    send: async (payload) => sent.push(payload),
+    work: (payload) => worker.work(payload),
+  });
+  const result = await router.accept(
+    event({ text: "换文件夹 /tmp/site", messageId: "om_folder" }),
+  );
+  assert.equal(result.action, "work");
+  assert.equal((await store.getChat("p2p:oc_dm")).folder, "/tmp/site");
+  assert.match(sent[0].text, /这条聊天改去/);
 });
 
 test("relative folders are rejected", async () => {

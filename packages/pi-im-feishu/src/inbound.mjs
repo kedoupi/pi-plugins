@@ -65,7 +65,7 @@ export function parseInbound(event, { botOpenId } = {}) {
   const chatId = nonEmpty(message.chat_id);
   if (!messageId || !chatId) return null;
   const rootId = nonEmpty(message.root_id);
-  const threadId = nonEmpty(message.thread_id) ?? rootId;
+  const threadId = nonEmpty(message.thread_id);
   const senderOpenId = nonEmpty(body.sender?.sender_id?.open_id);
   const senderType = nonEmpty(body.sender?.sender_type);
   let kind;

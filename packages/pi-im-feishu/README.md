@@ -30,7 +30,7 @@ Do not install a local source and an npm version together. No npm release exists
 
 1. In Pi TUI, run `/feishu setup qr`, or run `/feishu setup manual cli_xxx feishu` and enter the App Secret in the masked prompt. Use `lark` for Lark.
 2. Check `/feishu status`. Online is shown only after the long connection is ready.
-3. Bind an absolute folder with `/feishu folder <full-chat-key> /absolute/path`.
+3. On the first accepted message, send `换文件夹 /绝对路径` in Feishu, or use the hint's complete key with `/feishu folder <full-chat-key> /absolute/path` in Pi.
 4. Test with a disposable Feishu/Lark app before global dogfood. Closing Pi does not stop the assistant; the computer still needs power, network, and an awake user session.
 
 ## Commands, Tools, and Shortcuts
@@ -45,7 +45,7 @@ Pi TUI:
 
 Full keys are `p2p:<chat-id>`, `group:<chat-id>`, or `topic:<chat-id>:<thread-id>`. Print and JSON modes refuse setup, start, stop, folder, and attach without prompting, spawning, or opening a socket.
 
-In Feishu: `/stop`, `新对话`, `换文件夹 /绝对路径`, `以前的`, `以前的 1`, and `帮助`. Group/topic work requires a real mention of the configured bot. Important operations are confirmed only by the original requester in the same chat; group/topic confirmation also requires a bot mention.
+In Feishu: `/stop`, `新对话`, `换文件夹 /绝对路径`, `以前的`, `以前的 1`, and `帮助`. These lifecycle commands work before the first folder is bound. `/stop` also cancels a pending tool confirmation. Group/topic work requires a real mention of the configured bot. Important operations are confirmed only by the original requester in the same chat; group/topic confirmation also requires a bot mention.
 
 Inbound attachments are staged collision-safely at `<bound-folder>/.pi-im-feishu/inbox/<message-id>/<safe-name>`. The controlled `send_feishu_file` tool can queue one regular file inside the bound folder, asks the requester for confirmation, and sends only to the originating chat/topic.
 
@@ -101,7 +101,7 @@ Back up machine state before destructive manual cleanup. Never delete it as part
 - Node.js 22 or newer
 - Pi coding agent is a required peer (`peerDependencies: "*"`)
 - Installed-tarball smoke currently resolves the local Pi peer `0.84.4`
-- Feishu SDK boundary tests use injected clients; real Feishu/Lark connectivity remains a disposable-app acceptance step
+- Feishu SDK boundary tests match 1.73.0 resource streams, image upload fields, and WebSocket close; real Feishu/Lark connectivity remains a disposable-app acceptance step
 
 ## License
 

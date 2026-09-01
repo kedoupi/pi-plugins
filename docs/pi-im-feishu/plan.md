@@ -17,8 +17,8 @@
 
 - [x] **P0 真在线与本地控制**：QR/手填统一验证；SDK/runner/transport ready 后才 online；stop/stopped、脱敏错误、macOS autostart 边界
 - [x] **P1 远程工作与安全策略**：真实 bot mention、topic key、持久 dedupe、每 chat 串行 AgentSession、原请求者确认、隔离 resource loader
-- [x] **P2 对话生命周期**：`/stop`、新对话、换文件夹、以前的、帮助；排队/abort/release 次序有回归测试
-- [x] **P3 attach 与文件**：跨进程 lease/heartbeat/CAS、无双写；collision-safe inbox；`send_feishu_file` requester-bound queue
+- [x] **P2 对话生命周期**：`/stop`、新对话、换文件夹、以前的、帮助；首次 folder 命令、待确认取消与排队/abort/release 次序有回归测试
+- [x] **P3 attach 与文件**：跨进程 lease/heartbeat/CAS、无双写；collision-safe inbox；`send_feishu_file` requester-bound queue；Feishu SDK 1.73.0 stream/image/close 形状有契约测试
 
 `[x]` 代表源码、单元与进程自动化通过，不代表真实 Feishu/Lark、真实 launchd 或付费模型已验证。
 

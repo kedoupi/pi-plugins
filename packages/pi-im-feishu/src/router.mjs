@@ -1,16 +1,14 @@
+import { parseFeishuCommand } from "./commands.mjs";
 import { parseInbound } from "./inbound.mjs";
 import { titleForChat } from "./store.mjs";
 
 const FOLDER_HINT =
-  "先给这条聊天选一个文件夹。在电脑 Pi 里执行：/feishu folder {kind} {chatId} /绝对路径";
+  "先给这条聊天选一个文件夹。发送「换文件夹 /绝对路径」，或在电脑 Pi 里执行：/feishu folder {key} /绝对路径";
 const RECEIVED_HINT =
   "已收到，这条聊天会记在电脑的在线清单里。改代码要等绑定文件夹之后。";
 
 export function folderHint(inbound) {
-  return FOLDER_HINT.replace(
-    "{kind}",
-    inbound.kind === "topic" ? "group" : inbound.kind,
-  ).replace("{chatId}", inbound.chatId);
+  return FOLDER_HINT.replace("{key}", inbound.key);
 }
 
 export function shouldAccept(inbound) {
@@ -40,8 +38,9 @@ export function createRouter({ store, send, botOpenId, work, onMessage } = {}) {
           lastInbound: inbound.text || null,
         });
         const chat = await store.getChat(inbound.key);
+        const command = parseFeishuCommand(inbound.text);
         let response;
-        if (!chat?.folder) {
+        if (!chat?.folder && !command) {
           await send?.({
             chatId: inbound.chatId,
             text: folderHint(inbound),

@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createConfirmWait } from "../src/confirm-wait.mjs";
 import { isImportantTool, userConfirmed } from "../src/important.mjs";
 import { createRouter } from "../src/router.mjs";
 import { createStore } from "../src/store.mjs";
@@ -42,6 +43,49 @@ test("stop aborts the running job and cancels the queued job", async () => {
   assert.equal((await first).stopped, true);
   assert.equal((await second).stopped, true);
   assert.deepEqual(startedPrompts, ["first"]);
+});
+
+test("stop cancels requester confirmation before a later confirmation can run", async () => {
+  let confirmationSent;
+  let executed = false;
+  const wait = createConfirmWait(async () => {
+    confirmationSent?.();
+  });
+  const sent = new Promise((resolve) => {
+    confirmationSent = resolve;
+  });
+  const worker = createWork({
+    confirm: (request) => wait.ask(request),
+    cancelConfirm: (key) => wait.cancel(key),
+    runPrompt: async ({ confirm, inbound }) => {
+      if (await confirm({ inbound, kind: "bash", detail: "rm x" })) {
+        executed = true;
+      }
+      return { text: "done" };
+    },
+  });
+  const inbound = {
+    key: "p2p:a",
+    kind: "p2p",
+    chatId: "oc_a",
+    messageId: "om_request",
+    senderOpenId: "ou_requester",
+    text: "dangerous",
+  };
+  const running = worker.work({ inbound, chat: { folder: "/tmp/a" } });
+  await sent;
+  assert.equal(
+    (
+      await worker.work({
+        inbound: { ...inbound, text: "/stop" },
+        chat: { folder: "/tmp/a" },
+      })
+    ).stopped,
+    true,
+  );
+  assert.equal((await running).stopped, true);
+  assert.equal(wait.take({ ...inbound, text: "确认" }), null);
+  assert.equal(executed, false);
 });
 
 test("folder change releases the runner, archives the session, and starts fresh", async () => {

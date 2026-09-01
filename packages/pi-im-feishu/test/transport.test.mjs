@@ -2,14 +2,20 @@ import assert from "node:assert/strict";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Readable } from "node:stream";
 import test from "node:test";
 import { createFeishuTransport } from "../src/feishu-transport.mjs";
 
-function fakeLark({ emitReady = true, emitError = false } = {}) {
+function fakeLark({
+  emitReady = true,
+  emitError = false,
+  resourceResponse = Buffer.from("bin"),
+} = {}) {
   const createCalls = [];
   const replyCalls = [];
   const fileUploads = [];
   const imageUploads = [];
+  const wsCloseCalls = [];
   const lark = {
     Domain: { Feishu: "feishu", Lark: "lark" },
     LoggerLevel: { error: "error" },
@@ -33,7 +39,7 @@ function fakeLark({ emitReady = true, emitError = false } = {}) {
                 return { data: { image_key: "ik" } };
               },
             },
-            messageResource: { get: async () => Buffer.from("bin") },
+            messageResource: { get: async () => resourceResponse },
           },
         };
       }
@@ -53,12 +59,15 @@ function fakeLark({ emitReady = true, emitError = false } = {}) {
         if (emitError)
           queueMicrotask(() => this.options.onError?.(new Error("boom")));
       }
-      async stop() {}
+      close(options) {
+        wsCloseCalls.push(options);
+      }
     },
     createCalls,
     replyCalls,
     fileUploads,
     imageUploads,
+    wsCloseCalls,
   };
   return lark;
 }
@@ -124,7 +133,7 @@ test("uploads images through image.create and replies inside a topic", async () 
     files: [{ kind: "image", path }],
   });
   assert.deepEqual(lark.imageUploads, [
-    { data: { image: Buffer.from("png") } },
+    { data: { image_type: "message", image: Buffer.from("png") } },
   ]);
   assert.equal(lark.fileUploads.length, 0);
   assert.deepEqual(lark.replyCalls[0], {
@@ -167,6 +176,32 @@ test("uploads ordinary files through file.create and replies inside a topic", as
   });
 });
 
+test("buffers the readable returned by messageResource.get", async () => {
+  const resourceResponse = {
+    getReadableStream: () => Readable.from([Buffer.from("real-"), "shape"]),
+    writeFile: async () => {},
+    headers: { "content-type": "application/octet-stream" },
+  };
+  const transport = createFeishuTransport({
+    lark: fakeLark({ resourceResponse }),
+    credentials,
+  });
+  assert.deepEqual(
+    await transport.download({ key: "fk", messageId: "om_1" }),
+    Buffer.from("real-shape"),
+  );
+});
+
+test("stop force-closes the official WSClient", async () => {
+  const lark = fakeLark();
+  const transport = createFeishuTransport({ lark, credentials });
+  await transport.start();
+  assert.equal(Object.hasOwn(lark.wsOptions, "onClose"), false);
+  await transport.stop();
+  assert.deepEqual(lark.wsCloseCalls, [{ force: true }]);
+  assert.equal(transport.isReady(), false);
+});
+
 test("disconnect callbacks clear readiness and notify the owner", async () => {
   const lark = fakeLark();
   const disconnected = [];
@@ -183,8 +218,5 @@ test("disconnect callbacks clear readiness and notify the owner", async () => {
   assert.equal(transport.isReady(), true);
   lark.wsOptions.onError?.(new Error("boom"));
   assert.equal(transport.isReady(), false);
-  lark.wsOptions.onReconnected?.();
-  lark.wsOptions.onClose?.();
-  assert.equal(transport.isReady(), false);
-  assert.deepEqual(disconnected, ["closed", "boom", "closed"]);
+  assert.deepEqual(disconnected, ["closed", "boom"]);
 });

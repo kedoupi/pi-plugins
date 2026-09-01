@@ -192,6 +192,41 @@ test("uses exact session-file matching and releases cached sessions", async () =
   assert.equal(pi.sessions[2].disposed, true);
 });
 
+test("does not execute a confirmed tool after its run is aborted", async () => {
+  let releaseConfirm;
+  let confirmationStarted;
+  const started = new Promise((resolve) => {
+    confirmationStarted = resolve;
+  });
+  let calls = 0;
+  const bash = {
+    name: "bash",
+    execute: async () => {
+      calls += 1;
+      return { ok: true };
+    },
+  };
+  const controller = new AbortController();
+  interceptToolCalls(
+    { tools: [bash] },
+    async () => {
+      confirmationStarted();
+      return new Promise((resolve) => {
+        releaseConfirm = resolve;
+      });
+    },
+    { key: "p2p:a" },
+    { folder: "/workspace", signal: controller.signal },
+  );
+  const pending = bash.execute("id", { command: "rm -rf build" });
+  await started;
+  controller.abort();
+  releaseConfirm(true);
+  const result = await pending;
+  assert.equal(calls, 0);
+  assert.match(result.content[0].text, /已停止/);
+});
+
 test("interceptToolCalls classifies real input and skips blocked or denied calls", async () => {
   const calls = [];
   const bash = {

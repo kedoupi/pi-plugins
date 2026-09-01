@@ -10,7 +10,9 @@
 - Bound chats run the local coding agent (injectable). Same chat is serial; `/stop` aborts.
 - Destructive bash/write/delete asks for 确认 in Feishu; the reply is consumed before the next prompt.
 - Feishu commands: 新对话, 换文件夹, 以前的, 帮助.
-- Inbound files require a real download into the chat folder; outbound absolute files upload through Feishu APIs.
+- Inbound files consume the Feishu SDK resource stream into the chat folder; image uploads declare message image type.
+- First folder and lifecycle commands work from Feishu before a folder exists; Pi hints use the complete chat key.
+- `/stop` cancels pending requester confirmation and aborted calls cannot execute afterward.
 - Attach pauses assistant writes when folders match.
-- WebSocket is online only after onReady; handshake timeout fails closed.
+- WebSocket is online only after onReady; handshake timeout fails closed and stop force-closes the SDK client.
 - Nested Pi sessions reuse one AgentSession per chat and do not load this TUI extension.

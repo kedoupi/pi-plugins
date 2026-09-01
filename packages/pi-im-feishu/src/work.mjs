@@ -2,7 +2,7 @@ import { applyCommand, parseFeishuCommand } from "./commands.mjs";
 
 const STOPPED = { text: "已停止。", stopped: true };
 
-export function createWork({ runPrompt, confirm } = {}) {
+export function createWork({ runPrompt, confirm, cancelConfirm } = {}) {
   const lanes = new Map();
   let disposed = false;
 
@@ -38,6 +38,7 @@ export function createWork({ runPrompt, confirm } = {}) {
   }
 
   function abort(key) {
+    cancelConfirm?.(key);
     const lane = lanes.get(key);
     if (!lane) return;
     lane.generation += 1;

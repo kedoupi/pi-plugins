@@ -12,6 +12,15 @@ export function createConfirmWait(send) {
   const pending = new Map();
 
   return {
+    cancel(key) {
+      const waiter = pending.get(key);
+      if (!waiter) return false;
+      clearTimeout(waiter.timer);
+      pending.delete(key);
+      waiter.resolve(false);
+      return true;
+    },
+
     take(inbound) {
       const waiter = pending.get(inbound?.key);
       if (!waiter) return null;

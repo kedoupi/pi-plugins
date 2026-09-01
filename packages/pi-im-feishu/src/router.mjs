@@ -52,12 +52,15 @@ export function createRouter({ store, send, botOpenId, work, onMessage } = {}) {
           const result = await work({ inbound, chat });
           const text = result?.text;
           if (text) await send?.({ chatId: inbound.chatId, text, inbound });
-          if (result?.sessionFile) {
-            await store.upsertChat(inbound.key, {
-              sessionFile: result.sessionFile,
-            });
+          const patch = {
+            ...(result?.sessionFile !== undefined
+              ? { sessionFile: result.sessionFile }
+              : {}),
+            ...result?.patch,
+          };
+          if (Object.keys(patch).length) {
+            await store.upsertChat(inbound.key, patch);
           }
-          if (result?.patch) await store.upsertChat(inbound.key, result.patch);
           if (result?.files?.length) {
             await send?.({
               chatId: inbound.chatId,

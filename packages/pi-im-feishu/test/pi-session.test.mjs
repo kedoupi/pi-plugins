@@ -108,9 +108,16 @@ test("uses exact session-file matching and releases cached sessions", async () =
   await run({ ...message, sessionFile: null, text: "fresh" });
   assert.equal(pi.sessions.length, 2);
   assert.equal(pi.sessions[0].disposed, true);
-  await run.release("p2p:a");
+  assert.deepEqual(await run.release("p2p:a"), {
+    sessionFile: "/workspace/session-2.jsonl",
+  });
   assert.equal(pi.sessions[1].disposed, true);
-  run.dispose();
+  assert.deepEqual(await run.release("p2p:a"), { sessionFile: null });
+  await run({ ...message, sessionFile: null, text: "after release" });
+  assert.equal(pi.sessions.length, 3);
+  assert.equal(pi.sessions[2].disposed, false);
+  await run.dispose();
+  assert.equal(pi.sessions[2].disposed, true);
 });
 
 test("interceptToolCalls classifies real input and skips blocked or denied calls", async () => {

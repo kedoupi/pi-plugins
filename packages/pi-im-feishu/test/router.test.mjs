@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createRouter } from "../src/router.mjs";
 import { createStore } from "../src/store.mjs";
+import { createWork } from "../src/work.mjs";
 
 function event({
   chatType = "p2p",
@@ -114,6 +115,39 @@ test("filtering precedes confirmation consumption", async () => {
   );
   assert.equal(result.action, "filtered");
   assert.equal(confirmations, 0);
+});
+
+test("router persists a lifecycle patch after the runner is released", async () => {
+  const store = createStore(
+    await mkdtemp(join(tmpdir(), "pi-im-feishu-lifecycle-")),
+  );
+  await store.upsertChat("p2p:oc_dm", {
+    folder: "/tmp/site",
+    sessionFile: "/tmp/old.jsonl",
+    archives: [],
+  });
+  let released = false;
+  const runPrompt = async () => ({ text: "unused" });
+  runPrompt.release = async () => {
+    released = true;
+    return { sessionFile: "/tmp/latest.jsonl" };
+  };
+  runPrompt.dispose = async () => {};
+  const worker = createWork({ runPrompt });
+  const router = createRouter({
+    store,
+    send: async () => {},
+    work: (payload) => worker.work(payload),
+  });
+  assert.equal(
+    (await router.accept(event({ text: "新对话", messageId: "om_new" })))
+      .action,
+    "work",
+  );
+  const chat = await store.getChat("p2p:oc_dm");
+  assert.equal(released, true);
+  assert.equal(chat.sessionFile, null);
+  assert.equal(chat.archives[0].sessionFile, "/tmp/latest.jsonl");
 });
 
 test("retries a delivery whose send failed", async () => {

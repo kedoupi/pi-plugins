@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,27 +8,129 @@ import { createRouter } from "../src/router.mjs";
 import { createStore } from "../src/store.mjs";
 import { createWork } from "../src/work.mjs";
 
-test("same chat runs serially and stop aborts", async () => {
-  const order = [];
-  const worker = createWork({
-    runPrompt: async ({ inbound, signal }) => {
-      order.push(`start:${inbound.text}`);
-      await new Promise((resolve, reject) => {
-        const timer = setTimeout(resolve, 30);
-        signal.addEventListener("abort", () => {
+test("stop aborts the running job and cancels the queued job", async () => {
+  const startedPrompts = [];
+  const runPrompt = async ({ inbound, signal }) => {
+    startedPrompts.push(inbound.text);
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, 50);
+      signal.addEventListener(
+        "abort",
+        () => {
           clearTimeout(timer);
           reject(Object.assign(new Error("aborted"), { code: "aborted" }));
-        });
-      });
-      order.push(`end:${inbound.text}`);
-      return { text: `done:${inbound.text}`, sessionFile: "/tmp/s.jsonl" };
-    }
+        },
+        { once: true },
+      );
+    });
+    return { text: `done:${inbound.text}`, sessionFile: "/tmp/s.jsonl" };
+  };
+  runPrompt.release = async () => ({ sessionFile: null });
+  runPrompt.dispose = async () => {};
+  const worker = createWork({ runPrompt });
+  const chat = { folder: "/tmp/a" };
+  const first = worker.work({ inbound: { key: "p2p:a", text: "first" }, chat });
+  const second = worker.work({ inbound: { key: "p2p:a", text: "second" }, chat });
+  const stopped = await worker.work({
+    inbound: { key: "p2p:a", text: "/stop" },
+    chat,
   });
-  const first = worker.work({ inbound: { key: "p2p:a", text: "one" }, chat: { folder: "/tmp/a" } });
-  const stopped = worker.work({ inbound: { key: "p2p:a", text: "/stop" }, chat: { folder: "/tmp/a" } });
-  assert.equal((await stopped).stopped, true);
-  await first.catch(() => {});
-  assert.equal(order.includes("end:one"), false);
+  assert.equal(stopped.stopped, true);
+  assert.equal((await first).stopped, true);
+  assert.equal((await second).stopped, true);
+  assert.deepEqual(startedPrompts, ["first"]);
+});
+
+test("folder change releases the runner, archives the session, and starts fresh", async () => {
+  const releasedKeys = [];
+  const oldFile = "/tmp/latest.jsonl";
+  const runPrompt = async () => ({ text: "unused" });
+  runPrompt.release = async (key) => {
+    releasedKeys.push(key);
+    return { sessionFile: oldFile };
+  };
+  runPrompt.dispose = async () => {};
+  const worker = createWork({ runPrompt });
+  const result = await worker.work({
+    inbound: { key: "group:a", text: "换文件夹 /tmp/new" },
+    chat: {
+      folder: "/tmp/old",
+      sessionFile: "/tmp/stale.jsonl",
+      archives: [],
+    },
+  });
+  assert.equal(result.patch.sessionFile, null);
+  assert.equal(result.patch.archives[0].sessionFile, oldFile);
+  assert.equal(result.patch.folder, "/tmp/new");
+  assert.deepEqual(releasedKeys, ["group:a"]);
+});
+
+test("previous releases the runner before switching sessions", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-work-previous-"));
+  const oldFile = join(home, "old.jsonl");
+  await writeFile(
+    oldFile,
+    `${JSON.stringify({ type: "session", id: "old", cwd: "/tmp/site" })}\n`,
+  );
+  const releasedKeys = [];
+  const runPrompt = async () => ({ text: "unused" });
+  runPrompt.release = async (key) => {
+    releasedKeys.push(key);
+    return { sessionFile: "/tmp/latest.jsonl" };
+  };
+  const worker = createWork({ runPrompt });
+  const result = await worker.work({
+    inbound: { key: "p2p:a", text: "以前的 1" },
+    chat: {
+      folder: "/tmp/site",
+      sessionFile: "/tmp/stale.jsonl",
+      archives: [{ sessionFile: oldFile, label: "旧" }],
+    },
+  });
+  assert.equal(result.patch.sessionFile, oldFile);
+  assert.equal(result.patch.archives[0].sessionFile, "/tmp/latest.jsonl");
+  assert.deepEqual(releasedKeys, ["p2p:a"]);
+});
+
+test("release drains one lane without disposing its Pi session", async () => {
+  let runnerReleases = 0;
+  let runnerDisposes = 0;
+  const runPrompt = async ({ signal }) => {
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 50);
+      signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+    });
+    return { text: "done" };
+  };
+  runPrompt.release = async () => {
+    runnerReleases += 1;
+    return { sessionFile: null };
+  };
+  runPrompt.dispose = async () => {
+    runnerDisposes += 1;
+  };
+  const worker = createWork({ runPrompt });
+  const running = worker.work({
+    inbound: { key: "p2p:a", text: "one" },
+    chat: { folder: "/tmp/a" },
+  });
+  const queued = worker.work({
+    inbound: { key: "p2p:a", text: "two" },
+    chat: { folder: "/tmp/a" },
+  });
+  await worker.release("p2p:a");
+  assert.equal((await running).stopped, true);
+  assert.equal((await queued).stopped, true);
+  assert.equal(runnerReleases, 0);
+  await worker.dispose();
+  assert.equal(runnerDisposes, 1);
 });
 
 test("router with work replies using prompt text and stores sessionFile", async () => {

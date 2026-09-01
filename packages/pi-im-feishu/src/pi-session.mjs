@@ -192,8 +192,10 @@ export function createPiRunPrompt(pi, { secrets = [] } = {}) {
   };
   runner.release = async (key) => {
     const entry = pool.get(key);
+    const sessionFile = entry?.session?.sessionFile ?? entry?.sessionFile ?? null;
     pool.delete(key);
     await disposeEntry(entry);
+    return { sessionFile };
   };
   runner.dispose = async () => {
     const entries = [...pool.values()];

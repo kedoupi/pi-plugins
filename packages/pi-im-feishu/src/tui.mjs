@@ -1,5 +1,6 @@
 import { createAssistantControl } from "./assistant-control.mjs";
 import { createBind } from "./bind.mjs";
+import { HEARTBEAT_MS } from "./paths.mjs";
 import { chatKey } from "./store.mjs";
 
 function notify(ctx, text, level = "info") {
@@ -26,8 +27,40 @@ export default function createFeishuExtension(pi, {
 } = {}) {
   const homeBind = bind ?? createBind();
   const control = assistant ?? createAssistantControl(homeBind.store.home);
+  let heartbeatTimer;
+  let windowLease;
+
+  function currentSessionFile(ctx) {
+    return ctx?.sessionManager?.getSessionFile?.() ?? null;
+  }
 
   pi.on("session_start", async (_event, ctx) => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
+    windowLease = undefined;
+    const sessionFile = currentSessionFile(ctx);
+    const chat = await control.store?.findChatBySession?.(sessionFile);
+    const lease = chat ? await control.store.readOwnership(chat.key) : null;
+    if (
+      chat &&
+      lease?.owner === "window" &&
+      lease.state === "owned" &&
+      lease.pid === process.pid &&
+      lease.sessionFile === sessionFile &&
+      (await control.heartbeatWindow(chat.key, lease.requestId, process.pid))
+    ) {
+      windowLease = {
+        key: chat.key,
+        requestId: lease.requestId,
+        pid: process.pid,
+        sessionFile,
+      };
+      heartbeatTimer = setInterval(() => {
+        control
+          .heartbeatWindow(chat.key, lease.requestId, process.pid)
+          .catch(() => {});
+      }, HEARTBEAT_MS);
+    }
     const snapshot = await control.snapshot();
     const text = !snapshot.configured
       ? "飞书未绑定"
@@ -35,7 +68,19 @@ export default function createFeishuExtension(pi, {
     ctx.ui?.setStatus?.("pi-im-feishu", text);
   });
 
-  pi.on("session_shutdown", async () => {});
+  pi.on("session_shutdown", async (_event, ctx) => {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = undefined;
+    const lease = windowLease;
+    windowLease = undefined;
+    if (!lease || currentSessionFile(ctx) !== lease.sessionFile) return;
+    await control.releaseWindow(
+      lease.key,
+      lease.requestId,
+      lease.pid,
+      lease.sessionFile,
+    );
+  });
 
   pi.registerCommand("feishu", {
     description: "飞书：接入、在线、清单、文件夹、贴上说明",
@@ -103,10 +148,20 @@ export default function createFeishuExtension(pi, {
             notify(ctx, "用法：/feishu attach <chat-key>", "warning");
             return;
           }
-          const snapshot = await control.snapshot();
-          const chat = snapshot.chats.find((item) => item.key === key);
-          const decision = control.attachDecision(chat, ctx.cwd);
+          const decision = await control.attach(key, ctx.cwd, process.pid);
           notify(ctx, decision.message, decision.ok ? "info" : "warning");
+          if (!decision.ok) return;
+          try {
+            await ctx.switchSession(decision.sessionFile);
+          } catch (error) {
+            await control.releaseWindow(
+              key,
+              decision.requestId,
+              process.pid,
+              decision.sessionFile,
+            );
+            throw error;
+          }
           return;
         }
         notify(ctx, "命令：/feishu setup | start | stop | status | chats | folder | attach", "info");

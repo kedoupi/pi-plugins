@@ -6,7 +6,7 @@ import { createFeishuTransport, loadLarkSdk } from "./feishu-transport.mjs";
 import { HELP_TEXT } from "./commands.mjs";
 import { createConfirmWait } from "./confirm-wait.mjs";
 import { stageInboundFiles } from "./files.mjs";
-import { createOwnership } from "./ownership.mjs";
+import { createOwnershipCoordinator } from "./ownership.mjs";
 import { createWork } from "./work.mjs";
 import { createPiRunPrompt, loadPiSdk } from "./pi-session.mjs";
 
@@ -34,6 +34,9 @@ export async function runAssistant({
   await lock.acquire({ appId: credentials.appId });
 
   let timer;
+  let ownershipTimer;
+  let ownership;
+  let worker;
   let activeTransport = transport ?? null;
   let promptRunner = runPrompt;
   let closed = false;
@@ -42,12 +45,17 @@ export async function runAssistant({
     if (closed) return;
     closed = true;
     if (timer) clearInterval(timer);
+    if (ownershipTimer) clearInterval(ownershipTimer);
     if (signalHandler) {
       process.off("SIGTERM", signalHandler);
       process.off("SIGINT", signalHandler);
     }
     try {
-      await promptRunner?.dispose?.();
+      await ownership?.close?.();
+    } catch {}
+    try {
+      if (worker) await worker.dispose();
+      else await promptRunner?.dispose?.();
     } catch {}
     try {
       await activeTransport?.stop?.();
@@ -73,11 +81,10 @@ export async function runAssistant({
       );
     }
 
-    const ownership = createOwnership();
     const confirmWait = createConfirmWait((payload) =>
       activeTransport?.send?.(payload),
     );
-    const worker = createWork({
+    worker = createWork({
       runPrompt: promptRunner,
       confirm: confirm ?? ((request) => confirmWait.ask(request)),
     });
@@ -87,7 +94,7 @@ export async function runAssistant({
       send: (payload) => activeTransport?.send?.(payload),
       onMessage: (inbound) => confirmWait.take(inbound),
       work: async (payload) => {
-        if (!ownership.canAssistantWrite(payload.inbound.key)) {
+        if (!(await ownership.canAssistantWrite(payload.inbound.key))) {
           return {
             text: "这条对话正在电脑窗口里打开，飞书侧暂停改代码。关掉窗口后再说。",
           };
@@ -107,6 +114,12 @@ export async function runAssistant({
         }
         return result;
       },
+    });
+
+    ownership = createOwnershipCoordinator({
+      store,
+      runner: promptRunner,
+      worker,
     });
 
     if (handleSignals) {
@@ -154,6 +167,10 @@ export async function runAssistant({
     }
 
     await lock.heartbeat("online");
+    await ownership.serveRequests();
+    ownershipTimer = setInterval(() => {
+      ownership.serveRequests().catch((error) => logger.error?.(error));
+    }, 100);
     timer = setInterval(() => {
       const status =
         activeTransport?.isReady?.() === false ? "offline" : "online";

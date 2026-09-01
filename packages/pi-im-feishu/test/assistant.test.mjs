@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { runAssistant } from "../src/assistant.mjs";
 import { createAssistantControl } from "../src/assistant-control.mjs";
 import { createAutostart } from "../src/autostart.mjs";
-import { attachWithOwnership } from "../src/ownership.mjs";
 import { createLock } from "../src/lock.mjs";
 import { createStore } from "../src/store.mjs";
 
@@ -161,25 +160,46 @@ test("SDK startup failure is visible and releases the process lock before transp
   assert.equal(await createLock(home).read(), null);
 });
 
-test("attach pauses assistant writes when folders match", () => {
-  const ownership = {
-    released: false,
-    releaseToWindow() {
-      this.released = true;
-    },
-  };
-  assert.equal(attachWithOwnership(undefined, "/tmp/a").code, "unknown-chat");
-  const ok = attachWithOwnership(
-    {
-      key: "p2p:a",
-      title: "张三",
-      folder: "/tmp/a",
-      sessionFile: "/tmp/a.jsonl",
-    },
-    "/tmp/a",
-    ownership,
+test("attach validates the session and waits for the assistant grant", async () => {
+  const home = await mkdtemp(join(tmpdir(), "pi-im-feishu-attach-"));
+  const sessionFile = join(home, "session.jsonl");
+  await writeFile(sessionFile, "{}\n");
+  const control = createAssistantControl(home, {
+    autostart: createAutostart(),
+    runner: async ({ store, lock }) =>
+      runAssistant({
+        home,
+        store,
+        lock,
+        transport: fakeTransport(),
+        runPrompt: Object.assign(async () => ({ text: "unused" }), {
+          release: async () => ({ sessionFile }),
+          dispose: async () => {},
+        }),
+        handleSignals: false,
+      }),
+  });
+  await control.store.bindBot({
+    appId: "cli_abcdefghijklmn",
+    appSecret: "super-secret-value",
+  });
+  await control.store.upsertChat("p2p:a", {
+    title: "张三",
+    folder: home,
+    sessionFile,
+  });
+  assert.equal((await control.attach("p2p:missing", home)).code, "unknown-chat");
+
+  await control.start();
+  const result = await control.attach("p2p:a", home, process.pid);
+  assert.equal(result.ok, true);
+  assert.equal(result.sessionFile, sessionFile);
+  assert.equal((await control.store.readOwnership("p2p:a")).owner, "window");
+  await control.releaseWindow(
+    "p2p:a",
+    result.requestId,
+    process.pid,
+    sessionFile,
   );
-  assert.equal(ok.ok, true);
-  assert.equal(ownership.released, true);
-  assert.match(ok.message, /暂停写入/);
+  await control.stop();
 });

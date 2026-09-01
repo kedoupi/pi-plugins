@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
-import { open } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createAutostart } from "./autostart.mjs";
 import { macosAutostart } from "./macos-autostart.mjs";
-import { attachWithOwnership } from "./ownership.mjs";
+import { createOwnershipCoordinator } from "./ownership.mjs";
 import { createLock, onlineLabel } from "./lock.mjs";
 import { assistantScriptPath, defaultHome, HEARTBEAT_MS, HOME_ENV, logPath } from "./paths.mjs";
 import { chatKey, createStore } from "./store.mjs";
@@ -12,13 +12,14 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function createAssistantControl(home = defaultHome(), {
-  autostart,
-  runner
-} = {}) {
+export function createAssistantControl(
+  home = defaultHome(),
+  { autostart, runner, pid = process.pid } = {},
+) {
   const lock = createLock(home);
   const store = createStore(home);
   const auto = autostart ?? macosAutostart(home);
+  const ownership = createOwnershipCoordinator({ store, pid });
   let inProcess = null;
 
   async function waitForOnline(timeoutMs = 4_000) {
@@ -36,7 +37,95 @@ export function createAssistantControl(home = defaultHome(), {
     store,
     lock,
     autostart: auto,
-    attachDecision: (chat, cwd) => attachWithOwnership(chat, cwd, inProcess?.ownership),
+
+    async attach(key, cwd, windowPid = pid) {
+      const chat = await store.getChat(key);
+      if (!chat) {
+        return {
+          ok: false,
+          code: "unknown-chat",
+          message: "清单里还没有这条飞书聊天。",
+        };
+      }
+      if (!chat.folder) {
+        return {
+          ok: false,
+          code: "folder-missing",
+          message: "这条聊天还没有文件夹。",
+        };
+      }
+      if (!chat.sessionFile) {
+        return {
+          ok: false,
+          code: "no-session",
+          message: "这条聊天还没有对话。先在飞书里说话。",
+        };
+      }
+      if (chat.folder !== cwd) {
+        return {
+          ok: false,
+          code: "folder-mismatch",
+          message: `这段工作在 ${chat.folder}。请到那个目录打开 Pi，或继续用飞书。`,
+        };
+      }
+      try {
+        if (!(await stat(chat.sessionFile)).isFile()) throw new Error();
+      } catch {
+        return {
+          ok: false,
+          code: "session-missing",
+          message: "这条聊天的对话文件不存在，不能贴到窗口。",
+        };
+      }
+
+      const request = await ownership.requestWindow(key, { pid: windowPid });
+      const deadline = Date.now() + 4_000;
+      while (Date.now() < deadline) {
+        const lease = await store.readOwnership(key);
+        if (
+          lease?.owner === "window" &&
+          lease.state === "owned" &&
+          lease.pid === windowPid &&
+          lease.requestId === request.requestId
+        ) {
+          return {
+            ok: true,
+            code: "attach",
+            requestId: request.requestId,
+            sessionFile: lease.sessionFile,
+            folder: chat.folder,
+            message: `窗口可以打开「${chat.title ?? key}」。助手已暂停写入这条对话。关掉窗口后助手会再接手。`,
+          };
+        }
+        await sleep(50);
+      }
+      const assistantOwner = await lock.read();
+      await store.updateOwnership(key, (current) =>
+        current?.state === "requested" &&
+        current.requestId === request.requestId
+          ? {
+              ...current,
+              owner: "assistant",
+              state: "owned",
+              pid: assistantOwner?.pid ?? process.pid,
+              heartbeatAt: new Date().toISOString(),
+            }
+          : current,
+      );
+      return {
+        ok: false,
+        code: "ownership-timeout",
+        message: "助手没有及时交出这条对话，请确认飞书在线后重试。",
+      };
+    },
+
+    heartbeatWindow(key, requestId, windowPid = pid) {
+      return ownership.heartbeatWindow(key, requestId, windowPid);
+    },
+
+    releaseWindow(key, requestId, windowPid = pid, sessionFile) {
+      return ownership.releaseWindow(key, requestId, windowPid, sessionFile);
+    },
 
     async snapshot() {
       const [status, owner] = await Promise.all([store.status(), lock.read()]);

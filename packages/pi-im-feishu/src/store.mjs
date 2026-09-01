@@ -163,6 +163,7 @@ export function createStore(home = defaultHome(), hooks = {}) {
           folder: chat.folder ?? null,
           sessionFile: chat.sessionFile ?? null,
           archives: Array.isArray(chat.archives) ? chat.archives : [],
+          ownership: chat.ownership ?? null,
           updatedAt: chat.updatedAt ?? null,
         }))
         .sort((a, b) =>
@@ -263,6 +264,51 @@ export function createStore(home = defaultHome(), hooks = {}) {
         config.chats[key] = replacement;
         return replacement;
       });
+    },
+
+    async requestOwnership(key, request) {
+      return this.updateOwnership(key, request);
+    },
+
+    async readOwnership(key) {
+      return (await this.getChat(key))?.ownership ?? null;
+    },
+
+    async updateOwnership(key, updater) {
+      return this.updateChat(key, async (current) => {
+        if (!current) {
+          throw Object.assign(new Error(`unknown chat: ${key}`), {
+            code: "unknown-chat",
+          });
+        }
+        const replacement =
+          typeof updater === "function"
+            ? await updater(current.ownership ?? null, current)
+            : updater;
+        if (replacement === null || replacement === undefined) {
+          delete current.ownership;
+          return current;
+        }
+        if (typeof replacement !== "object" || Array.isArray(replacement)) {
+          throw Object.assign(
+            new Error("ownership updater must return a lease record"),
+            { code: "invalid-ownership" },
+          );
+        }
+        current.ownership = replacement;
+        return current;
+      }).then((chat) => chat.ownership ?? null);
+    },
+
+    async findChatBySession(sessionFile) {
+      if (!nonEmpty(sessionFile)) return null;
+      const config = await loadConfig();
+      for (const [key, chat] of Object.entries(config.chats)) {
+        if (chat?.sessionFile !== sessionFile) continue;
+        const { ownership: _ownership, ...record } = chat;
+        return { key, ...record };
+      }
+      return null;
     },
 
     async upsertChat(key, patch) {

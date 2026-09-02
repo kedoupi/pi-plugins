@@ -40,7 +40,7 @@ chat key 固定为 `p2p:<chatId>`、`group:<chatId>`、`topic:<chatId>:<threadId
 
 ## 4. 绑定、路由与确认
 
-QR 与手填都先验证真实 bot open id，再写同一 binding。Secret 由 masked TUI 输入，错误持久化前会按已知 secret 脱敏。rebind 顺序为 verify → stop old → write new → start new；stop 即使 launchd disable 失败也继续杀助手。若后续 start 成功 enable autostart，则清除已恢复的旧 disable error；否则错误继续可见。
+`/feishu setup` 先选择扫码自动创建（默认）或手动填写已有应用。扫码面板同时展示本地生成的终端二维码、原始授权链接和过期时间，Esc 通过 AbortSignal 取消 SDK polling；手填在 TUI 内选择 Feishu/Lark、输入 App ID，再通过 masked TUI 输入 Secret。两条路都先验证真实 bot open id，再写同一 binding。错误持久化前会按已知 secret 脱敏。rebind 顺序为 verify → stop old → write new → start new；stop 即使 launchd disable 失败也继续杀助手。若后续 start 成功 enable autostart，则清除已恢复的旧 disable error；否则错误继续可见。
 
 私聊接受非 bot sender。群/话题必须 mention 配置 bot 的真实 open id；identity 缺失时拒绝。只有 Feishu `thread_id` 建立 topic key；`root_id` 只是普通回复链元数据，不把群回复拆成另一条 session。topic 回复使用 thread reply。message delivery claim 持久化为 in-progress/complete，发送失败释放 claim 以便重试。首次还没有 folder 时，飞书生命周期命令仍先执行；普通工作才返回含完整 `inbound.key` 的 TUI folder 提示。
 

@@ -2,7 +2,7 @@
 
 ## 0.1.0
 
-- Machine-level Feishu bind: QR or manual, one bot per computer.
+- Machine-level Feishu bind: `/feishu setup` selects QR or masked manual setup, one bot per computer.
 - Resident assistant: online only after the long connection is ready.
 - Inbound chats join the list; groups require @; no folder means no work.
 - TUI remote: setup, start, stop, status, folder, attach explanation.

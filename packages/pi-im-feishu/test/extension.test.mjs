@@ -9,6 +9,21 @@ import { createAutostart } from "../src/autostart.mjs";
 import { createBind } from "../src/bind.mjs";
 import createFeishuExtension, { maskedInput } from "../src/tui.mjs";
 
+const TEST_KEYBINDINGS = {
+  matches(data, binding) {
+    const keys = {
+      "tui.select.cancel": ["\u001b", "\u0003", "\u001b[27u", "\u001b[99;5u"],
+      "tui.input.submit": ["\r", "\n", "\u001b[13u"],
+      "tui.editor.deleteCharBackward": ["\u007f", "\b", "\u001b[127u"],
+    };
+    return keys[binding]?.includes(data) ?? false;
+  },
+};
+
+function kittyText(value) {
+  return [...value].map((character) => `\u001b[${character.codePointAt(0)}u`);
+}
+
 test("extension registers /feishu and does not start sockets in the factory", () => {
   const commands = [];
   const hooks = [];
@@ -243,8 +258,7 @@ test("commands with side effects refuse non-TUI contexts", async () => {
     ui: { notify: (message) => notifications.push(message) },
   };
   for (const command of [
-    "setup qr",
-    "setup manual cli_123 feishu",
+    "setup",
     "start",
     "stop",
     "folder topic:chat:thread /tmp/a",
@@ -253,21 +267,27 @@ test("commands with side effects refuse non-TUI contexts", async () => {
     await handler(command, noUi);
   }
   assert.deepEqual(calls, []);
-  assert.equal(notifications.length, 6);
+  assert.equal(notifications.length, 5);
   assert.ok(notifications.every((message) => /Pi TUI/.test(message)));
 });
 
-test("masked input renders bullets and returns no secret on escape", async () => {
+test("masked input handles Kitty keys and bracketed paste without revealing the secret", async () => {
   let rendered;
   const ctx = {
     ui: {
       custom(factory) {
         return new Promise((resolve) => {
-          const component = factory({ requestRender() {} }, {}, {}, resolve);
-          component.handleInput("secret-value");
+          const component = factory(
+            { requestRender() {} },
+            {},
+            TEST_KEYBINDINGS,
+            resolve,
+          );
+          for (const key of kittyText("secret")) component.handleInput(key);
+          component.handleInput("\u001b[200~-value\u001b[201~");
           rendered = component.render(80).join("\n");
-          component.handleInput("\u007f");
-          component.handleInput("\r");
+          component.handleInput("\u001b[127u");
+          component.handleInput("\u001b[13u");
         });
       },
     },
@@ -279,17 +299,159 @@ test("masked input renders bullets and returns no secret on escape", async () =>
 
   ctx.ui.custom = (factory) =>
     new Promise((resolve) => {
-      const component = factory({ requestRender() {} }, {}, {}, resolve);
+      const component = factory(
+        { requestRender() {} },
+        {},
+        TEST_KEYBINDINGS,
+        resolve,
+      );
       component.handleInput("do-not-return");
-      component.handleInput("\u001b");
+      component.handleInput("\u001b[27u");
     });
   assert.equal(await maskedInput(ctx, "App Secret"), null);
 });
 
-test("manual setup obtains the secret only from masked input and rebinds", async () => {
+test("setup defaults to QR and renders a QR code plus authorization link", async () => {
+  let handler;
+  let rendered = "";
+  const candidates = [];
+  const selections = [];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: {
+        store: { home: "/tmp/unused" },
+        async qrCandidate({ onQRCodeReady, signal }) {
+          assert.equal(signal instanceof AbortSignal, true);
+          onQRCodeReady({ url: "https://accounts.feishu.cn/qr-test", expireIn: 60 });
+          return {
+            appId: "cli_1234567890",
+            appSecret: "secret-value",
+            domain: "feishu",
+            botOpenId: "ou_bot",
+          };
+        },
+      },
+      assistant: {
+        async snapshot() {
+          return { configured: false };
+        },
+        async rebind(candidate) {
+          candidates.push(candidate);
+          return { status: "online" };
+        },
+      },
+    },
+  );
+
+  await handler("setup", {
+    mode: "tui",
+    hasUI: true,
+    ui: {
+      notify() {},
+      async select(title, options) {
+        selections.push({ title, options });
+        return options[0];
+      },
+      custom(factory) {
+        return new Promise((resolve) => {
+          const component = factory({ requestRender() {} }, {}, {}, resolve);
+          rendered = component.render(100).join("\n");
+        });
+      },
+    },
+  });
+
+  assert.match(selections[0].title, /绑定方式/);
+  assert.match(selections[0].options[0], /扫码/);
+  assert.match(rendered, /https:\/\/accounts\.feishu\.cn\/qr-test/);
+  assert.equal(
+    rendered.includes("\u001b]8;;https://accounts.feishu.cn/qr-test"),
+    true,
+  );
+  assert.match(rendered, /[▀▄█]/);
+  assert.deepEqual(candidates.map(({ appSecret, ...candidate }) => candidate), [
+    {
+      appId: "cli_1234567890",
+      domain: "feishu",
+      botOpenId: "ou_bot",
+    },
+  ]);
+});
+
+test("escaping the QR panel aborts registration without replacing the binding", async () => {
+  let handler;
+  let aborted = false;
+  let rebound = false;
+  const notifications = [];
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: {
+        store: { home: "/tmp/unused" },
+        qrCandidate({ onQRCodeReady, signal }) {
+          return new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => {
+              aborted = true;
+              reject(Object.assign(new Error("Registration was aborted"), { code: "abort" }));
+            });
+            onQRCodeReady({ url: "https://accounts.feishu.cn/qr-test", expireIn: 60 });
+          });
+        },
+      },
+      assistant: {
+        async snapshot() {
+          return { configured: false };
+        },
+        async rebind() {
+          rebound = true;
+        },
+      },
+    },
+  );
+
+  await handler("setup", {
+    mode: "tui",
+    hasUI: true,
+    ui: {
+      notify: (message) => notifications.push(message),
+      async select(_title, options) {
+        return options[0];
+      },
+      custom(factory) {
+        return new Promise((resolve) => {
+          const component = factory(
+            { requestRender() {} },
+            {},
+            TEST_KEYBINDINGS,
+            resolve,
+          );
+          component.handleInput("\u001b[99;5u");
+        });
+      },
+    },
+  });
+
+  assert.equal(aborted, true);
+  assert.equal(rebound, false);
+  assert.match(notifications.join("\n"), /取消/);
+});
+
+test("setup can select manual binding without putting the secret in arguments", async () => {
   let handler;
   const candidates = [];
   const notifications = [];
+  let selection = 0;
   createFeishuExtension(
     {
       registerCommand(_name, options) {
@@ -300,31 +462,42 @@ test("manual setup obtains the secret only from masked input and rebinds", async
     {
       bind: { store: { home: "/tmp/unused" } },
       assistant: {
+        async snapshot() {
+          return { configured: false };
+        },
         async rebind(candidate) {
           candidates.push(candidate);
-          return {
-            started: true,
-            status: "online",
-            autostart: { enabled: true },
-            lastError: null,
-          };
+          return { status: "online" };
         },
       },
     },
   );
-  await handler("setup manual cli_1234567890 lark", {
+  await handler("setup", {
     mode: "tui",
     hasUI: true,
     ui: {
       notify: (message) => notifications.push(message),
+      async select(_title, options) {
+        selection += 1;
+        return options[1];
+      },
+      async input() {
+        return "cli_1234567890";
+      },
       custom: (factory) =>
         new Promise((resolve) => {
-          const component = factory({ requestRender() {} }, {}, {}, resolve);
+          const component = factory(
+            { requestRender() {} },
+            {},
+            TEST_KEYBINDINGS,
+            resolve,
+          );
           component.handleInput("secret-value");
           component.handleInput("\r");
         }),
     },
   });
+  assert.equal(selection, 2);
   assert.deepEqual(candidates, [
     {
       appId: "cli_1234567890",
@@ -333,6 +506,49 @@ test("manual setup obtains the secret only from masked input and rebinds", async
     },
   ]);
   assert.equal(notifications.join("\n").includes("secret-value"), false);
+});
+
+test("setup preserves an existing binding when replacement is cancelled", async () => {
+  let handler;
+  let confirmed = false;
+  let selected = false;
+  let rebound = false;
+  createFeishuExtension(
+    {
+      registerCommand(_name, options) {
+        handler = options.handler;
+      },
+      on() {},
+    },
+    {
+      bind: { store: { home: "/tmp/unused" } },
+      assistant: {
+        async snapshot() {
+          return { configured: true };
+        },
+        async rebind() {
+          rebound = true;
+        },
+      },
+    },
+  );
+  await handler("setup", {
+    mode: "tui",
+    hasUI: true,
+    ui: {
+      notify() {},
+      async confirm() {
+        confirmed = true;
+        return false;
+      },
+      async select() {
+        selected = true;
+      },
+    },
+  });
+  assert.equal(confirmed, true);
+  assert.equal(selected, false);
+  assert.equal(rebound, false);
 });
 
 test("status text distinguishes all four states and shows lastError", async () => {

@@ -15,8 +15,11 @@ test("QR and manual bind verify and store the same bot identity", async () => {
     verified.push(credentials);
     return { ok: true, bot: { open_id: "ou_bot" } };
   };
+  const controller = new AbortController();
   await bindQr(store, {
-    registerApp: async ({ onQRCodeReady }) => {
+    signal: controller.signal,
+    registerApp: async ({ onQRCodeReady, signal }) => {
+      assert.equal(signal, controller.signal);
       onQRCodeReady?.({ url: "https://example.test/qr", expireIn: 60 });
       codes.push("shown");
       return {

@@ -28,7 +28,7 @@ Do not install a local source and an npm version together. No npm release exists
 
 ## Quick Start
 
-1. In Pi TUI, run `/feishu setup qr`, or run `/feishu setup manual cli_xxx feishu` and enter the App Secret in the masked prompt. Use `lark` for Lark.
+1. In Pi TUI, run `/feishu setup`, then choose QR creation (default) or manual configuration. QR setup shows both a terminal QR code and its authorization link. Manual setup asks for Feishu/Lark, App ID, and the App Secret in a masked prompt.
 2. Check `/feishu status`. Online is shown only after the long connection is ready.
 3. On the first accepted message, send `换文件夹 /绝对路径` in Feishu, or use the hint's complete key with `/feishu folder <full-chat-key> /absolute/path` in Pi.
 4. Test with a disposable Feishu/Lark app before global dogfood. Closing Pi does not stop the assistant; the computer still needs power, network, and an awake user session.
@@ -37,8 +37,7 @@ Do not install a local source and an npm version together. No npm release exists
 
 Pi TUI:
 
-- `/feishu setup qr`
-- `/feishu setup manual <appId> [feishu|lark]` — secret is requested separately and masked
+- `/feishu setup` — choose QR creation or manual configuration; secrets stay in the masked prompt
 - `/feishu start`, `/feishu stop`, `/feishu status`, `/feishu chats`
 - `/feishu folder <full-chat-key> <absolute-path>`
 - `/feishu attach <full-chat-key>` — transfers the existing session from the assistant to this Pi window; closing the matching window releases it

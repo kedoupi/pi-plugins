@@ -42,18 +42,17 @@ function checked(command, args, options = {}) {
   return result;
 }
 
-async function extractTarball(tarball, installed, peerDir) {
+async function extractTarball(tarball, installed, linkedPackages) {
   await rm(installed, { recursive: true, force: true });
   await mkdir(installed, { recursive: true });
   checked("tar", ["-xzf", tarball, "-C", installed, "--strip-components=1"]);
-  const peerLink = join(
-    dirname(dirname(installed)),
-    "@earendil-works",
-    "pi-coding-agent",
-  );
-  await mkdir(dirname(peerLink), { recursive: true });
-  await rm(peerLink, { recursive: true, force: true });
-  await symlink(peerDir, peerLink, "dir");
+  const modules = dirname(dirname(installed));
+  for (const [name, target] of Object.entries(linkedPackages)) {
+    const link = join(modules, ...name.split("/"));
+    await mkdir(dirname(link), { recursive: true });
+    await rm(link, { recursive: true, force: true });
+    await symlink(target, link, "dir");
+  }
 }
 
 async function textFiles(root) {
@@ -71,7 +70,12 @@ test("installed tarball works offline and preserves machine state", async (t) =>
   const modules = join(fixture, "node_modules");
   const installed = join(modules, "@kedoupi", "pi-im-feishu");
   const stateHome = join(fixture, "machine-state");
-  const peerDir = await packageRoot("@earendil-works/pi-coding-agent");
+  const linkedPackages = {
+    "@earendil-works/pi-coding-agent": await packageRoot(
+      "@earendil-works/pi-coding-agent",
+    ),
+    "qrcode-terminal": await packageRoot("qrcode-terminal"),
+  };
   const packed = checked(
     "npm",
     ["pack", "--json", "--ignore-scripts", "--pack-destination", fixture],
@@ -106,7 +110,7 @@ test("installed tarball works offline and preserves machine state", async (t) =>
     );
   });
 
-  await extractTarball(tarball, installed, peerDir);
+  await extractTarball(tarball, installed, linkedPackages);
 
   await t.test("resolves the real local Pi peer", () => {
     const result = checked(process.execPath, [
@@ -143,8 +147,7 @@ test("installed tarball works offline and preserves machine state", async (t) =>
         const notifications = [];
         for (const mode of ["print", "json"]) {
           for (const command of [
-            "setup qr",
-            "setup manual cli_fixture feishu",
+            "setup",
             "start",
             "stop",
             "folder p2p:fixture /tmp/project",
@@ -157,7 +160,7 @@ test("installed tarball works offline and preserves machine state", async (t) =>
             });
           }
         }
-        assert.equal(notifications.length, 12);
+        assert.equal(notifications.length, 10);
         assert.equal(await exists(stateHome), false);
       } finally {
         if (previousHome === undefined) delete process.env.PI_IM_FEISHU_HOME;
@@ -208,7 +211,7 @@ test("installed tarball works offline and preserves machine state", async (t) =>
         configBefore,
       );
 
-      await extractTarball(tarball, installed, peerDir);
+      await extractTarball(tarball, installed, linkedPackages);
       const { createStore } = await import(
         `${pathToFileURL(join(installed, "src/store.mjs")).href}?rollback=1`
       );
@@ -226,7 +229,7 @@ test("installed tarball works offline and preserves machine state", async (t) =>
   await t.test(
     "contains no private checkout path or fixture credential",
     async () => {
-      await extractTarball(tarball, installed, peerDir);
+      await extractTarball(tarball, installed, linkedPackages);
       for (const file of await textFiles(installed)) {
         const text = await readFile(file, "utf8").catch(() => "");
         assert.equal(text.includes(packageDir), false, file);

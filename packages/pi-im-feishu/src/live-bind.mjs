@@ -61,5 +61,6 @@ export async function registerFeishuApp(options = {}) {
     source: "pi-im-feishu",
     onQRCodeReady: options.onQRCodeReady,
     onStatusChange: options.onStatusChange,
+    signal: options.signal,
   });
 }

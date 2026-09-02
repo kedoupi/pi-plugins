@@ -51,6 +51,7 @@ async function qrCandidate({
   registerApp = registerFeishuApp,
   onQRCodeReady,
   onStatusChange,
+  signal,
 } = {}) {
   if (typeof registerApp !== "function") {
     throw Object.assign(new Error("当前不能扫码开通。请改用手动填写。"), {
@@ -61,6 +62,7 @@ async function qrCandidate({
     source: "pi-im-feishu",
     onQRCodeReady,
     onStatusChange,
+    signal,
   });
   return {
     appId: result?.client_id,

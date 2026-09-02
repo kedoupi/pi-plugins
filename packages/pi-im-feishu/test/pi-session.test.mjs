@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -121,7 +121,9 @@ test("queues an in-workspace file only after requester confirmation", async () =
   assert.equal(confirmCalls.length, 1);
   assert.equal(confirmCalls[0].inbound, inbound);
   assert.equal(confirmCalls[0].kind, "send_feishu_file");
-  assert.deepEqual(result.files, [{ path, kind: "file" }]);
+  assert.deepEqual(result.files, [
+    { path: await realpath(path), kind: "file" },
+  ]);
   pi.onPrompt = null;
   assert.deepEqual(
     (await run({ ...message, folder, text: "next run" })).files,

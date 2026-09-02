@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  realpath,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -74,11 +80,11 @@ test("validates regular outbound files inside the real workspace", async () => {
   await writeFile(image, "png");
   await writeFile(file, "text");
   assert.deepEqual(await validateOutboundFile(folder, image), {
-    path: image,
+    path: await realpath(image),
     kind: "image",
   });
   assert.deepEqual(await validateOutboundFile(folder, "out.txt"), {
-    path: file,
+    path: await realpath(file),
     kind: "file",
   });
 });

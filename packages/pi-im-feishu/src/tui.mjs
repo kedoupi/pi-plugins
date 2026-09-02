@@ -1,3 +1,4 @@
+import qrcode from "qrcode-terminal";
 import { createAssistantControl } from "./assistant-control.mjs";
 import { createBind } from "./bind.mjs";
 import { HEARTBEAT_MS } from "./paths.mjs";
@@ -20,27 +21,159 @@ const STATUS_TEXT = {
   offline: "离线",
 };
 
+const QR_SETUP = "扫码自动创建飞书助手";
+const MANUAL_SETUP = "手动填写已有应用";
+const FEISHU_DOMAIN = "Feishu 中国";
+const LARK_DOMAIN = "Lark 国际";
+
+const KITTY_CSI_U =
+  /^\u001b\[(\d+)(?::(\d*))?(?::\d+)?(?:;(\d+))?(?::\d+)?u$/;
+const KITTY_KEYPAD_CHARACTERS = new Map([
+  ...Array.from({ length: 10 }, (_, digit) => [57399 + digit, 48 + digit]),
+  [57409, 46],
+  [57410, 47],
+  [57411, 42],
+  [57412, 45],
+  [57413, 43],
+  [57415, 61],
+  [57416, 44],
+]);
+
+function decodeKittyPrintable(data) {
+  const match = data.match(KITTY_CSI_U);
+  if (!match) return undefined;
+  const codepoint = Number.parseInt(match[1], 10);
+  const shifted = match[2] ? Number.parseInt(match[2], 10) : undefined;
+  const modifier = (match[3] ? Number.parseInt(match[3], 10) : 1) - 1;
+  const allowedModifiers = 1 | 64 | 128;
+  if (
+    !Number.isFinite(codepoint) ||
+    !Number.isFinite(modifier) ||
+    (modifier & ~allowedModifiers) !== 0 ||
+    (modifier & (2 | 4)) !== 0
+  ) {
+    return undefined;
+  }
+  const selected = modifier & 1 && Number.isFinite(shifted) ? shifted : codepoint;
+  const normalized = KITTY_KEYPAD_CHARACTERS.get(selected) ?? selected;
+  if (!Number.isFinite(normalized) || normalized < 32) return undefined;
+  try {
+    return String.fromCodePoint(normalized);
+  } catch {
+    return undefined;
+  }
+}
+
+function isPrintable(value) {
+  return ![...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127 || (code >= 128 && code <= 159);
+  });
+}
+
+function cleanPaste(value) {
+  return value
+    .replace(/\r\n/g, "")
+    .replace(/[\r\n]/g, "")
+    .replace(/\t/g, "    ");
+}
+
+function qrText(url) {
+  let output = "";
+  qrcode.generate(url, { small: true }, (value) => {
+    output = value.trimEnd();
+  });
+  return output;
+}
+
+function wrapLine(line, width) {
+  const size = Math.max(1, width);
+  const characters = [...line];
+  const lines = [];
+  for (let index = 0; index < characters.length; index += size) {
+    lines.push(characters.slice(index, index + size).join(""));
+  }
+  return lines.length ? lines : [""];
+}
+
+function terminalLink(url) {
+  const safe = String(url).replace(/[\u0000-\u001f\u007f]/g, "");
+  return `\u001b]8;;${safe}\u001b\\打开授权链接\u001b]8;;\u001b\\`;
+}
+
+function showQrPanel(ctx, info, onCancel) {
+  let close = () => {};
+  const qr = qrText(info.url);
+  const result = ctx.ui.custom((_tui, _theme, keybindings, done) => {
+    let closed = false;
+    close = (value = null) => {
+      if (closed) return;
+      closed = true;
+      done(value);
+    };
+    return {
+      render(width) {
+        const beforeLink = [
+          "扫描二维码创建 Feishu/Lark 应用",
+          "",
+          ...qr.split("\n"),
+          "",
+        ].flatMap((line) => wrapLine(line, width));
+        const afterLink = [
+          info.url,
+          `约 ${info.expireIn} 秒后过期 · Esc 取消`,
+        ].flatMap((line) => wrapLine(line, width));
+        return [...beforeLink, terminalLink(info.url), ...afterLink];
+      },
+      handleInput(data) {
+        if (!keybindings.matches(data, "tui.select.cancel")) return;
+        onCancel();
+        close("cancelled");
+      },
+      invalidate() {},
+    };
+  });
+  result.catch(() => {});
+  return { close };
+}
+
 export function maskedInput(ctx, title) {
   if (typeof ctx?.ui?.custom !== "function") return Promise.resolve(null);
-  return ctx.ui.custom((tui, _theme, _keybindings, done) => {
+  return ctx.ui.custom((tui, _theme, keybindings, done) => {
     let value = "";
+    let pasteBuffer = null;
     return {
       render() {
         return [title, `> ${"•".repeat([...value].length)}`];
       },
       handleInput(data) {
-        if (data === "\u001b") return done(null);
-        if (data === "\r" || data === "\n") return done(value);
-        if (data === "\u007f" || data === "\b") {
+        const pasteStart = data.indexOf("\u001b[200~");
+        if (pasteStart !== -1) {
+          pasteBuffer = "";
+          data = data.slice(pasteStart + 6);
+        }
+        if (pasteBuffer !== null) {
+          pasteBuffer += data;
+          const pasteEnd = pasteBuffer.indexOf("\u001b[201~");
+          if (pasteEnd === -1) return;
+          const pasted = cleanPaste(pasteBuffer.slice(0, pasteEnd));
+          if (isPrintable(pasted)) value += pasted;
+          const remaining = pasteBuffer.slice(pasteEnd + 6);
+          pasteBuffer = null;
+          if (remaining) this.handleInput(remaining);
+          tui.requestRender();
+          return;
+        }
+        if (keybindings.matches(data, "tui.select.cancel")) return done(null);
+        if (keybindings.matches(data, "tui.input.submit") || data === "\n") {
+          return done(value);
+        }
+        if (keybindings.matches(data, "tui.editor.deleteCharBackward")) {
           value = [...value].slice(0, -1).join("");
-        } else if (
-          data &&
-          ![...data].some((character) => {
-            const code = character.charCodeAt(0);
-            return code < 32 || code === 127 || (code >= 128 && code <= 159);
-          })
-        ) {
-          value += data;
+        } else {
+          const kittyPrintable = decodeKittyPrintable(data);
+          if (kittyPrintable !== undefined) value += kittyPrintable;
+          else if (data && isPrintable(data)) value += data;
         }
         tui.requestRender();
       },
@@ -152,35 +285,76 @@ export default function createFeishuExtension(pi, { bind, assistant } = {}) {
       }
       try {
         if (cmd === "setup") {
-          const mode = tokens[1];
-          if (mode === "qr") {
-            const candidate = await homeBind.qrCandidate({
-              onQRCodeReady: (info) => {
-                notify(
-                  ctx,
-                  `请扫码（${info.expireIn} 秒后过期）：\n${info.url}`,
-                );
-              },
-            });
-            const result = await control.rebind(candidate);
-            notify(
-              ctx,
-              result.status === "online"
-                ? "飞书已绑定并在线。"
-                : "飞书绑定后未上线。",
-              result.status === "online" ? "info" : "warning",
-            );
+          if (tokens.length > 1) {
+            notify(ctx, "直接执行 /feishu setup 即可。", "warning");
             return;
           }
-          if (mode === "manual") {
-            const appId = tokens[2];
-            const domain = tokens[3] || "feishu";
-            if (!appId || !["feishu", "lark"].includes(domain)) {
-              notify(
-                ctx,
-                "用法：/feishu setup manual <appId> [feishu|lark]",
-                "warning",
-              );
+          const snapshot = await control.snapshot();
+          if (
+            snapshot.configured &&
+            !(await ctx.ui.confirm(
+              "重新绑定飞书？",
+              "当前助手会停止，扫码或手动验证成功后再切换到新应用。",
+              { initialValue: false },
+            ))
+          ) {
+            notify(ctx, "已保留当前绑定。");
+            return;
+          }
+          const selected = await ctx.ui.select(
+            "选择绑定方式",
+            [QR_SETUP, MANUAL_SETUP],
+            { initialValue: QR_SETUP },
+          );
+          if (!selected) {
+            notify(ctx, "已取消绑定。", "warning");
+            return;
+          }
+
+          let candidate;
+          if (selected === QR_SETUP) {
+            const controller = new AbortController();
+            let panel;
+            try {
+              candidate = await homeBind.qrCandidate({
+                signal: controller.signal,
+                onQRCodeReady: (info) => {
+                  panel = showQrPanel(ctx, info, () => controller.abort());
+                },
+                onStatusChange: (info) => {
+                  if (info?.status === "domain_switched") {
+                    notify(ctx, "检测到 Lark 租户，正在切换区域。");
+                  }
+                },
+              });
+            } catch (error) {
+              panel?.close();
+              if (error?.code === "abort") {
+                notify(ctx, "已取消绑定。", "warning");
+                return;
+              }
+              if (error?.code === "expired_token") {
+                notify(ctx, "二维码已过期，请重新执行 /feishu setup。", "warning");
+                return;
+              }
+              throw error;
+            }
+            panel?.close("complete");
+          } else {
+            const region = await ctx.ui.select(
+              "选择应用区域",
+              [FEISHU_DOMAIN, LARK_DOMAIN],
+              { initialValue: FEISHU_DOMAIN },
+            );
+            if (!region) {
+              notify(ctx, "已取消绑定。", "warning");
+              return;
+            }
+            const appId = String(
+              (await ctx.ui.input("请输入 App ID", "")) ?? "",
+            ).trim();
+            if (!appId) {
+              notify(ctx, "App ID 不能为空。", "warning");
               return;
             }
             const appSecret = await maskedInput(ctx, "请输入 App Secret");
@@ -188,20 +362,20 @@ export default function createFeishuExtension(pi, { bind, assistant } = {}) {
               notify(ctx, "已取消绑定。", "warning");
               return;
             }
-            const result = await control.rebind({ appId, appSecret, domain });
-            notify(
-              ctx,
-              result.status === "online"
-                ? "飞书已绑定并在线。"
-                : "飞书绑定后未上线。",
-              result.status === "online" ? "info" : "warning",
-            );
-            return;
+            candidate = {
+              appId,
+              appSecret,
+              domain: region === LARK_DOMAIN ? "lark" : "feishu",
+            };
           }
+
+          const result = await control.rebind(candidate);
           notify(
             ctx,
-            "用法：/feishu setup qr  或  /feishu setup manual <appId> [feishu|lark]",
-            "warning",
+            result.status === "online"
+              ? "飞书已绑定并在线。"
+              : "飞书绑定后未上线。",
+            result.status === "online" ? "info" : "warning",
           );
           return;
         }

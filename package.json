@@ -12,10 +12,14 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "node scripts/validate-packages.mjs && node scripts/validate-readmes.mjs && node scripts/validate-catalog.mjs && npm run catalog:check",
-    "test": "node --test scripts/*.test.mjs",
+    "check": "npm run check --workspaces --if-present && node scripts/validate-packages.mjs && node scripts/validate-readmes.mjs && node scripts/validate-catalog.mjs && npm run catalog:check",
+    "test": "node --test scripts/*.test.mjs packages/*/test/*.test.mjs",
     "pack:check": "node scripts/pack-check.mjs",
     "catalog:render": "node scripts/render-catalog.mjs",
     "catalog:check": "node scripts/render-catalog.mjs --check"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3"
   }
 }

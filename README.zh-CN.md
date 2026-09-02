@@ -22,7 +22,7 @@ Kedoupi Pi Plugins 是 `@kedoupi` 的 [Pi](https://github.com/badlogic/pi-mono) 
 - 记录本地开发、测试、发布与安全规则。
 - 使用 Node.js 22 CI，不配置发布凭据。
 
-目前尚未发布第一方 Package；本仓库不会用空示例冒充可安装产品。
+尚未发布到 npm。`@kedoupi/pi-im-feishu` 已在 `packages/pi-im-feishu` 完成源码、进程和已打包 tarball 自动化验证；这些测试注入飞书边界，不能证明真实租户连通。产研文档：[docs/pi-im-feishu](./docs/pi-im-feishu/README.md)。
 
 ## Curated Catalog
 
@@ -77,7 +77,7 @@ Pi Extension 以当前用户权限运行。安装任何 Package 前，应检查�
 
 ## Roadmap
 
-下一阶段只在选定一个具有真实用户价值和明确名称的第一方 Package 后启动，并从已验证的 Package 流程继续验证项目级加载、全局 dogfood、可信发布、安装生命周期和第一方套件集成。
+`@kedoupi/pi-im-feishu` 在完整自动化门禁通过后，可交给维护者使用一次性应用做真实连接验收，再进行全局本地源码 dogfood。真实飞书/Lark、macOS launchd 与模型调用仍需受控本机证据。发布是另一个提案，必须由维护者明确确认；闭环完成前不创建 Suite。
 
 不创建推测性的演示 Package。
 

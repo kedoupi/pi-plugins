@@ -20,6 +20,14 @@ export function findForbiddenTarballFiles(files, bundledDependencies = []) {
   }).sort();
 }
 
+export function findUntrackedTarballFiles(files, trackedFiles) {
+  const tracked = new Set(trackedFiles);
+  return files
+    .map((file) => file.replace(/^package\//, ""))
+    .filter((file) => !file.startsWith("node_modules/") && !tracked.has(file))
+    .sort();
+}
+
 async function main() {
   const root = fileURLToPath(new URL("..", import.meta.url));
   const dirs = await discoverPackageDirs(root);
@@ -38,6 +46,14 @@ async function main() {
     const files = report.files.map(({ path }) => `package/${path}`);
     const rejected = findForbiddenTarballFiles(files, bundled);
     if (rejected.length) throw new Error(`${report.name}: forbidden tarball files\n${rejected.join("\n")}`);
+
+    const git = spawnSync("git", ["ls-files", "-z", "--cached", "--", "."], {
+      cwd: dir,
+      encoding: "utf8"
+    });
+    if (git.status !== 0) throw new Error(git.stderr || git.stdout);
+    const untracked = findUntrackedTarballFiles(files, git.stdout.split("\0").filter(Boolean));
+    if (untracked.length) throw new Error(`${report.name}: untracked tarball files\n${untracked.join("\n")}`);
   }
 
   console.log(`Checked ${dirs.length} package tarballs.`);

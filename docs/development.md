@@ -1,13 +1,23 @@
 # Development Workflow
 
-本地开发采用“项目隔离测试 → 全局本地源码 dogfood → npm 正式版”两层模式。
+第一方 Package 使用下面这条证据链，不跳级：
+
+```text
+项目级本地源码加载
+→ 临时状态目录自动化 smoke
+→ 一次性真实飞书/Lark 应用测试
+→ 全局本地源码 dogfood
+→ 证据齐全后才提发布建议
+```
+
+`@kedoupi/pi-im-feishu` 已完成源码、子进程与本地 tarball 自动化；自动化使用注入的飞书边界，不证明真实飞书连通，也不使用真实凭据。
 
 ## Project trust
 
 ```bash
 git clone https://github.com/kedoupi/pi-plugins.git
 cd pi-plugins
-npm install
+npm ci --ignore-scripts
 pi
 ```
 
@@ -15,65 +25,54 @@ pi
 
 ## Project-local loading
 
-foundation 阶段没有真实第一方 Package，因此提交的 `.pi/settings.json` 保持：
+提交的 `.pi/settings.json` 使用仓库内相对路径加载 Package；不得包含 API Key、令牌或私人路径。隔离加载入口：
 
-```json
-{
-  "packages": []
-}
+```bash
+pi --no-extensions -e ./packages/pi-im-feishu/extensions/index.ts
 ```
-
-选定并创建首个真实 Package 后，再按相对路径加入对应 workspace：
-
-```json
-{
-  "packages": [
-    "../packages/<real-package-dir>"
-  ]
-}
-```
-
-相对路径以 `.pi/settings.json` 所在目录为基准。该配置可提交，但不得包含 API Key、令牌或私人路径。
 
 开发循环：
 
 ```text
-修改源码 → 类型检查/单测 → /reload → 手动触发功能 → 观察结果
+修改源码 → npm run check → npm test → npm run pack:check → /reload → 手动触发
 ```
 
-## Single-Package isolation
+`/feishu setup`、`start`、`stop`、`folder`、`attach` 只在 TUI 执行；print/JSON 模式必须无提示框、无 spawn、无 socket 副作用。
 
-首个真实 Package 落地后，使用它自己的目录进行隔离调试：
+## Temporary-home automated smoke
 
 ```bash
-pi --no-extensions -e ./packages/<real-package-dir>
+npm run check
+node --test packages/pi-im-feishu/test/{assistant-process,installed-package}.test.mjs
+npm test
+npm run pack:check
 ```
 
-必要时直接加载入口：
+测试为每次运行创建临时 `PI_IM_FEISHU_HOME`。installed smoke 只打包一次，解压到临时 `node_modules/@kedoupi/pi-im-feishu`，并链接本机已经解析的 Pi peer；它不执行 `npm install`，不访问网络。测试还证明 print/JSON 无副作用、start/stop、断线离线、替换/卸载/回滚不删除机器状态。
 
-```bash
-pi --no-extensions -e ./packages/<real-package-dir>/extensions/index.ts
-```
+## Disposable real-app test
 
-包含 Skill、Prompt 或 Theme 时优先加载整个 Package 目录。
+自动化全绿后，使用没有生产数据的一次性 Feishu/Lark 应用。真实验证 QR/手填绑定、私聊、群 @、完整 topic key、原请求者确认、话题回复、断线、重启、stop/rebind、跨进程 attach、入站 inbox、`send_feishu_file`，以及本机 macOS launchd（如适用）。
+
+不要提交 App ID、Secret、状态目录、日志、session 或本机路径。真实模型调用可能收费；先设置可接受的模型和额度。测试结束后撤销应用凭据。
 
 ## Global dogfood
 
-候选版本通过隔离测试后，以绝对路径加入全局 Pi：
+候选通过一次性应用测试后，以绝对路径加入全局 Pi：
 
 ```bash
-pi install /absolute/path/pi-plugins/packages/<real-package-dir>
+pi install /absolute/path/pi-plugins/packages/pi-im-feishu
 ```
 
-至少完成一个真实工作任务，并验证重启、`/reload`、Session 生命周期、无 UI 模式和资源清理。
+至少完成一个真实工作任务，并验证重启、`/reload`、Session 生命周期、print/JSON 安全降级、连接与定时器清理。不要同时加载项目级、本地全局与 npm 三个副本。
 
-## Switching to the npm release
+## Switching to an npm release
 
-发布后移除本地路径，再安装 npm 正式版：
+仅在未来明确发布后移除本地路径，再安装固定 npm 版本：
 
 ```bash
-pi remove /absolute/path/pi-plugins/packages/<real-package-dir>
-pi install npm:@kedoupi/<real-package-name>
+pi remove /absolute/path/pi-plugins/packages/pi-im-feishu
+pi install npm:@kedoupi/pi-im-feishu@<version>
 ```
 
-其中 `<real-package-name>` 必须是实际发布的 `pi-*` 名称。不得同时加载本地版和 npm 版。
+机器状态默认位于 `~/.pi/agent/pi-im-feishu/`，Package 替换或卸载不会自动删除。更新和回滚前先 `/feishu stop`，必要时备份状态；不要用卸载命令当作状态清理命令。
